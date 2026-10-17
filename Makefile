@@ -1,4 +1,5 @@
 CONFIG ?= config.json
+export PYGAME_HIDE_SUPPORT_PROMPT := 1
 
 install:
 	uv sync
