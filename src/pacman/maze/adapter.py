@@ -15,13 +15,11 @@ WALL_BIT_MAP = {
 }
 
 
-def adapt_maze(
-    generator: MazeGenerator,
-) -> Maze:
-    """Take an external MazeGenerator object and return our internal Maze."""
+def convert_maze_grid(
+    raw_maze: list[list[int]],
+) -> list[list[Wall]]:
+    """Convert A-Maze-ing wall values into our internal Wall grid."""
 
-    # Read the raw wall-encoded maze produced by A-Maze-ing.
-    raw_maze = generator.maze
     maze_grid: list[list[Wall]] = []
 
     # Convert each external maze row into our internal Wall representation.
@@ -40,6 +38,18 @@ def adapt_maze(
             row.append(walls)
 
         maze_grid.append(row)
+
+    return maze_grid
+
+
+def adapt_maze(
+    generator: MazeGenerator,
+) -> Maze:
+    """Take an external MazeGenerator object and return our internal Maze."""
+
+    # Read the raw wall-encoded maze produced by A-Maze-ing.
+    raw_maze = generator.maze
+    maze_grid = convert_maze_grid(raw_maze)
 
     # Return our Maze so the rest of the game never sees raw A-Maze-ing data.
     return Maze(maze_grid)

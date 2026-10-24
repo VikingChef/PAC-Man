@@ -1,8 +1,8 @@
 """Tests for the Pac-Man application orchestrator."""
 
+from pacman.app.actions import MainMenuAction
 from pacman.app.application import AppState, PacManApp
 from pacman.config.models import GameConfig, LevelConfig
-from pacman.app.actions import MainMenuAction
 
 
 def _test_config() -> GameConfig:
@@ -54,7 +54,6 @@ def test_start_new_game_creates_game_state() -> None:
     assert app.game_state.score == 0
     assert app.game_state.lives == 3
     assert app.game_state.current_level == 1
-    assert app.game_state.remaining_time == 90
     assert app.state == AppState.PLAYING
 
 

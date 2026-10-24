@@ -81,7 +81,6 @@ class PacManApp:
             score=0,
             lives=self.config.lives,
             current_level=1,
-            remaining_time=self.config.level_max_time,
         )
 
         # Move into gameplay once the new run is ready.

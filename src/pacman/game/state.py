@@ -11,4 +11,3 @@ class GameState:
     score: int
     lives: int
     current_level: int
-    remaining_time: int

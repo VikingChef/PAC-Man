@@ -1,6 +1,6 @@
 """Represent the maze and determine valid positions and movement."""
 
-from pacman.direction import Direction
+from pacman.maze.direction import Direction
 from pacman.maze.wall import Wall
 
 DIRECTION_TO_WALL = {
