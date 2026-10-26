@@ -1,6 +1,7 @@
 """Represent an active Pac-Man level and its level-specific state."""
 
 from pacman.config.models import LevelConfig
+from pacman.game.player import Player
 from pacman.maze.maze import Maze
 
 
@@ -11,6 +12,7 @@ class Level:
         self,
         config: LevelConfig,
         maze: Maze,
+        player: Player,
         time_limit: int,
     ) -> None:
         """Receive the initial pieces for one level, and create level state."""
@@ -18,6 +20,7 @@ class Level:
         self.config = config
         self.maze = maze
         self.remaining_time = time_limit
+        self.player = player
 
     def tick(
         self,
@@ -32,6 +35,6 @@ class Level:
 
     @property
     def is_time_up(self) -> bool:
-        """Return whether remaining_time has reached zero"""
+        """Return whether remaining_time has reached zero."""
 
         return self.remaining_time == 0
