@@ -2,6 +2,7 @@
 
 from pacman.config.models import LevelConfig
 from pacman.game.level import Level
+from pacman.game.pacgum import PacgumType
 from pacman.game.player import Player
 from pacman.maze.direction import Direction
 from pacman.maze.maze import Maze
@@ -172,3 +173,74 @@ def test_time_is_left() -> None:
 
     # The property should report that time remains.
     assert level.is_time_up is False
+
+
+def test_collect_pacgum_removes_and_returns_pacgum() -> None:
+    """Verify that collecting a pacgum removes and returns it."""
+
+    # Build the minimal dependencies needed for one active level.
+    config = LevelConfig(
+        number=1,
+        width=1,
+        height=1,
+    )
+
+    maze = Maze([[Wall.NONE]])
+
+    player = Player(
+        spawn_position=(0, 0),
+        spawn_direction=Direction.EAST,
+    )
+
+    # Start the level with one known normal pacgum.
+    level = Level(
+        config=config,
+        maze=maze,
+        player=player,
+        time_limit=90,
+        pacgums={
+            (0, 0): PacgumType.PACGUM,
+        },
+    )
+
+    # Collect the pacgum from its known position.
+    collected = level.collect_pacgum((0, 0))
+
+    # Collection should report the type of pacgum that was removed.
+    assert collected == PacgumType.PACGUM
+
+    # The collected pacgum should no longer remain in the level state.
+    assert (0, 0) not in level.pacgums
+
+
+def test_collect_pacgum_returns_none_when_empty() -> None:
+    """Verify that collecting from an empty position returns None."""
+
+    # Build the minimal dependencies needed for one active level.
+    config = LevelConfig(
+        number=1,
+        width=1,
+        height=1,
+    )
+
+    maze = Maze([[Wall.NONE]])
+
+    player = Player(
+        spawn_position=(0, 0),
+        spawn_direction=Direction.EAST,
+    )
+
+    # Start with no pacgums so the requested position is empty.
+    level = Level(
+        config=config,
+        maze=maze,
+        player=player,
+        time_limit=90,
+        pacgums={},
+    )
+
+    # Attempt to collect from a position containing no pacgum.
+    collected = level.collect_pacgum((0, 0))
+
+    # Empty positions should be handled normally rather than raising an error.
+    assert collected is None

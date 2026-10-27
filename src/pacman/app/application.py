@@ -6,6 +6,7 @@ from pacman.app.actions import MainMenuAction
 from pacman.config.models import GameConfig
 from pacman.game.level import Level
 from pacman.game.level_factory import create_level
+from pacman.game.pacgum import PacgumType
 from pacman.game.state import GameState
 from pacman.maze.direction import Direction
 
@@ -104,14 +105,33 @@ class PacManApp:
     def move_player(self, direction: Direction) -> bool:
         """Move the active player in the requested direction."""
 
-        # Movement requires an active playable level.
-        if self.active_level is None:
+        # Gameplay movement requires both an active level and run-wide state.
+        if self.active_level is None or self.game_state is None:
             return False
 
-        return self.active_level.player.move(
+        # Delegate movement to the Player and stop if the maze blocks the move.
+        moved = self.active_level.player.move(
             self.active_level.maze,
             direction,
         )
+
+        if not moved:
+            return False
+
+        # Check the player's new position and remove any pacgum found there.
+        collected_pacgum = self.active_level.collect_pacgum(
+            self.active_level.player.position,
+        )
+
+        # Apply the configured score for the collected pacgum type.
+        if collected_pacgum == PacgumType.PACGUM:
+            self.game_state.score += self.config.points_per_pacgum
+
+        elif collected_pacgum == PacgumType.SUPER_PACGUM:
+            self.game_state.score += self.config.points_per_super_pacgum
+
+        # Preserve the movement contract: a successful move returns True.
+        return True
 
     def _handle_main_menu_action(
         self,

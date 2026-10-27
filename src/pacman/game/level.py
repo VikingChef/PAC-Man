@@ -25,6 +25,14 @@ class Level:
         self.player = player
         self.pacgums = pacgums
 
+    def collect_pacgum(
+        self,
+        position: tuple[int, int],
+    ) -> PacgumType | None:
+        """Remove and return the pacgum at a position, if present."""
+
+        return self.pacgums.pop(position, None)
+
     def tick(
         self,
         elapsed_seconds: int
