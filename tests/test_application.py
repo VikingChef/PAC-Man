@@ -3,6 +3,7 @@
 from pacman.app.actions import MainMenuAction
 from pacman.app.application import AppState, PacManApp
 from pacman.config.models import GameConfig, LevelConfig
+from pacman.maze.direction import Direction
 
 
 def _test_config() -> GameConfig:
@@ -134,3 +135,34 @@ def test_exit_action_stops_application() -> None:
 
     # Confirm the application was stopped cleanly.
     assert app.running is False
+
+
+def test_move_player_moves_active_player() -> None:
+    """Verify that the app delegates movement to the active player."""
+
+    # Start a game so the application has an active level and player.
+    app = PacManApp(_test_config())
+    app.start_new_game()
+
+    # Keep the test explicit about the state required for gameplay.
+    assert app.active_level is not None
+
+    player = app.active_level.player
+    maze = app.active_level.maze
+
+    # Find one direction the generated maze allows from the spawn position.
+    direction = next(
+        direction
+        for direction in Direction
+        if maze.can_move(player.position, direction)
+    )
+
+    start_position = player.position
+
+    # Move through application boundary instead of touching Player directly.
+    moved = app.move_player(direction)
+
+    # The app should report success and the player's position should change.
+    assert moved is True
+    assert player.position != start_position
+    assert player.direction == direction

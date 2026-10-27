@@ -1,7 +1,8 @@
-"""Represent the maze and determine valid positions and movement."""
+"""Represent an internal Pac-Man maze and its movement rules."""
 
 from pacman.maze.direction import Direction
 from pacman.maze.wall import Wall
+
 
 DIRECTION_TO_WALL = {
     Direction.NORTH: Wall.NORTH,
@@ -12,33 +13,38 @@ DIRECTION_TO_WALL = {
 
 
 class Maze:
-    """Represent the maze structure and provide movement/position checks."""
+    """Represent maze geometry independently from the external generator."""
 
     def __init__(
         self,
-        maze_grid: list[list[Wall]]
+        maze_grid: list[list[Wall]],
+        reserved_positions: frozenset[tuple[int, int]] = frozenset(),
     ) -> None:
-        """Create a maze from the provided maze grid."""
+        """Initialize maze geometry and generator-reserved positions."""
 
         self.maze_grid = maze_grid
+        self.reserved_positions = reserved_positions
 
     @property
     def height(self) -> int:
-        """Return the height of the maze."""
+        """Return the number of rows in the maze."""
 
         return len(self.maze_grid)
 
     @property
     def width(self) -> int:
-        """Return the width of the maze."""
+        """Return the number of columns in the maze."""
+
+        if not self.maze_grid:
+            return 0
 
         return len(self.maze_grid[0])
 
     def within_bounds(
         self,
-        position: tuple[int, int]
+        position: tuple[int, int],
     ) -> bool:
-        """Return whether a position is within maze boundaries."""
+        """Return whether a position lies inside the maze."""
 
         x, y = position
 
@@ -52,19 +58,20 @@ class Maze:
         position: tuple[int, int],
         direction: Direction,
     ) -> bool:
-        """Return whether the proposed movement direction is viable."""
+        """Return whether movement is possible in the given direction."""
 
-# calculate the destination from the current position and movement direction
-        x, y = position
         dx, dy = direction.value
-        destination = (x + dx, y + dy)
+        x, y = position
+        destination = (
+            x + dx,
+            y + dy,
+        )
 
+        # Movement cannot leave the maze boundaries.
         if not self.within_bounds(destination):
             return False
 
+        # Movement cannot cross a wall from the current maze cell.
         wall = DIRECTION_TO_WALL[direction]
 
-        if self.maze_grid[y][x] & wall:
-            return False
-
-        return True
+        return not self.maze_grid[y][x] & wall

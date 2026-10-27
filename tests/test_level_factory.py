@@ -20,6 +20,7 @@ def test_create_level_builds_active_level() -> None:
         config=config,
         seed=42,
         time_limit=90,
+        pacgum_count=42,
     )
 
     # Verify that factory input became the expected active level state.
@@ -29,9 +30,13 @@ def test_create_level_builds_active_level() -> None:
     assert level.maze.width == 15
     assert level.maze.height == 15
 
+    # The player should begin in the middle of the generated maze.
+    assert level.player.spawn_position == (7, 7)
+    assert level.player.position == (7, 7)
+
 
 def test_create_level_is_deterministic_for_same_seed() -> None:
-    """Verify that the same seed produces the same maze."""
+    """Verify that the same seed produces the same maze and pacgum layout."""
 
     # Use one shared configuration so only generation determinism is tested.
     config = LevelConfig(
@@ -45,13 +50,16 @@ def test_create_level_is_deterministic_for_same_seed() -> None:
         config=config,
         seed=42,
         time_limit=90,
+        pacgum_count=42,
     )
 
     level_b = create_level(
         config=config,
         seed=42,
         time_limit=90,
+        pacgum_count=42,
     )
 
-    # Matching seeds should produce identical internal maze layouts.
+    # Matching seeds should produce identical generated level state.
     assert level_a.maze.maze_grid == level_b.maze.maze_grid
+    assert level_a.pacgums == level_b.pacgums

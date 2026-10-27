@@ -25,12 +25,13 @@ def test_level_initializes_state() -> None:
         spawn_direction=Direction.EAST,
     )
 
-    # Create the level with a known starting timer.
+    # Create the level with a known starting timer and empty pacgum state.
     level = Level(
         config=config,
         maze=maze,
         player=player,
         time_limit=90,
+        pacgums={},
     )
 
     # Verify that constructor input became the level's initial state.
@@ -38,6 +39,7 @@ def test_level_initializes_state() -> None:
     assert level.maze == maze
     assert level.player == player
     assert level.remaining_time == 90
+    assert level.pacgums == {}
 
 
 def test_level_tick_reduces_remaining_time() -> None:
@@ -63,6 +65,7 @@ def test_level_tick_reduces_remaining_time() -> None:
         maze=maze,
         player=player,
         time_limit=90,
+        pacgums={},
     )
 
     # Simulate ten elapsed seconds.
@@ -95,6 +98,7 @@ def test_level_tick_does_not_go_below_zero() -> None:
         maze=maze,
         player=player,
         time_limit=90,
+        pacgums={},
     )
 
     # Simulate more elapsed time than remains on the level timer.
@@ -127,6 +131,7 @@ def test_time_is_up() -> None:
         maze=maze,
         player=player,
         time_limit=90,
+        pacgums={},
     )
 
     # Reduce the timer exactly to zero.
@@ -159,6 +164,7 @@ def test_time_is_left() -> None:
         maze=maze,
         player=player,
         time_limit=90,
+        pacgums={},
     )
 
     # Reduce the timer to half its starting value.

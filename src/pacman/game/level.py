@@ -3,6 +3,7 @@
 from pacman.config.models import LevelConfig
 from pacman.game.player import Player
 from pacman.maze.maze import Maze
+from pacman.game.pacgum import PacgumType
 
 
 class Level:
@@ -14,6 +15,7 @@ class Level:
         maze: Maze,
         player: Player,
         time_limit: int,
+        pacgums: dict[tuple[int, int], PacgumType],
     ) -> None:
         """Receive the initial pieces for one level, and create level state."""
 
@@ -21,6 +23,7 @@ class Level:
         self.maze = maze
         self.remaining_time = time_limit
         self.player = player
+        self.pacgums = pacgums
 
     def tick(
         self,

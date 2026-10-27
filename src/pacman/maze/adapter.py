@@ -1,4 +1,4 @@
-"""Process the A-Maze-ing maze into our internal Maze/Wall representation."""
+"""Adapt the external A-Maze-ing representation into our internal Maze."""
 
 from mazegenerator.mazegenerator import MazeGenerator
 
@@ -6,7 +6,6 @@ from pacman.maze.maze import Maze
 from pacman.maze.wall import Wall
 
 
-# Translate A-Maze-ing wall encoding into readable Wall flags.
 WALL_BIT_MAP = {
     1: Wall.NORTH,
     2: Wall.EAST,
@@ -14,42 +13,61 @@ WALL_BIT_MAP = {
     8: Wall.WEST,
 }
 
+RESERVED_CELL_VALUE = 15
+
 
 def convert_maze_grid(
     raw_maze: list[list[int]],
 ) -> list[list[Wall]]:
-    """Convert A-Maze-ing wall values into our internal Wall grid."""
+    """Convert the external wall bitmasks into internal Wall values."""
 
     maze_grid: list[list[Wall]] = []
 
-    # Convert each external maze row into our internal Wall representation.
     for raw_row in raw_maze:
-        row: list[Wall] = []
+        maze_row: list[Wall] = []
 
-        # Convert each raw cell into a combination of our Wall flags.
         for raw_cell in raw_row:
             walls = Wall.NONE
 
-            # Check which external wall bits are present in this cell.
+            # Convert each external wall bit into our internal representation.
             for bit, wall in WALL_BIT_MAP.items():
                 if raw_cell & bit:
                     walls |= wall
 
-            row.append(walls)
+            maze_row.append(walls)
 
-        maze_grid.append(row)
+        maze_grid.append(maze_row)
 
     return maze_grid
 
 
-def adapt_maze(
-    generator: MazeGenerator,
-) -> Maze:
-    """Take an external MazeGenerator object and return our internal Maze."""
+def find_reserved_positions(
+    raw_maze: list[list[int]],
+) -> frozenset[tuple[int, int]]:
+    """Return positions marked as reserved by the external generator."""
 
-    # Read the raw wall-encoded maze produced by A-Maze-ing.
+    reserved_positions = {
+        (x, y)
+        for y, row in enumerate(raw_maze)
+        for x, cell in enumerate(row)
+        if cell == RESERVED_CELL_VALUE
+    }
+
+    return frozenset(reserved_positions)
+
+
+def adapt_maze(generator: MazeGenerator) -> Maze:
+    """Convert an external generated maze into our internal Maze."""
+
     raw_maze = generator.maze
+
+    # Convert generator-specific wall values at the external boundary.
     maze_grid = convert_maze_grid(raw_maze)
 
-    # Return our Maze so the rest of the game never sees raw A-Maze-ing data.
-    return Maze(maze_grid)
+    # Preserve generator-reserved cells without leaking their raw encoding.
+    reserved_positions = find_reserved_positions(raw_maze)
+
+    return Maze(
+        maze_grid=maze_grid,
+        reserved_positions=reserved_positions,
+    )

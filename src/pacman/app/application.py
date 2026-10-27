@@ -4,7 +4,10 @@ from enum import Enum, auto
 
 from pacman.app.actions import MainMenuAction
 from pacman.config.models import GameConfig
+from pacman.game.level import Level
+from pacman.game.level_factory import create_level
 from pacman.game.state import GameState
+from pacman.maze.direction import Direction
 
 
 class AppState(Enum):
@@ -38,6 +41,9 @@ class PacManApp:
 
         # Create run-specific game state only when a new game starts.
         self.game_state: GameState | None = None
+
+        # Create the active level only when a new game starts.
+        self.active_level: Level | None = None
 
     def run(self) -> None:
         """Run the Pac-Man application."""
@@ -76,15 +82,36 @@ class PacManApp:
     def start_new_game(self) -> None:
         """Create the state for a new Pac-Man game."""
 
-        # Build a fresh run from the validated configuration.
+        # Build fresh run-wide state from the validated configuration.
         self.game_state = GameState(
             score=0,
             lives=self.config.lives,
             current_level=1,
         )
 
-        # Move into gameplay once the new run is ready.
+        # Build the first playable level and its active game state.
+        first_level_config = self.config.levels[0]
+        self.active_level = create_level(
+            config=first_level_config,
+            seed=self.config.seed,
+            time_limit=self.config.level_max_time,
+            pacgum_count=self.config.pacgum,
+        )
+
+        # Move into gameplay once the new run and level are ready.
         self.change_state(AppState.PLAYING)
+
+    def move_player(self, direction: Direction) -> bool:
+        """Move the active player in the requested direction."""
+
+        # Movement requires an active playable level.
+        if self.active_level is None:
+            return False
+
+        return self.active_level.player.move(
+            self.active_level.maze,
+            direction,
+        )
 
     def _handle_main_menu_action(
         self,
@@ -112,7 +139,8 @@ class PacManApp:
         """Handle the active gameplay application state."""
 
         # Gameplay systems will be coordinated from here.
-        pass
+        if self.game_state is None or self.active_level is None:
+            return
 
     def _run_pause_menu(self) -> None:
         """Handle the paused application state."""

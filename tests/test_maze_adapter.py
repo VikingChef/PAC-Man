@@ -3,6 +3,7 @@
 from mazegenerator.mazegenerator import MazeGenerator
 
 from pacman.maze.adapter import adapt_maze, convert_maze_grid
+from pacman.maze.adapter import find_reserved_positions
 from pacman.maze.maze import Maze
 from pacman.maze.wall import Wall
 
@@ -69,3 +70,19 @@ def test_adapt_maze_returns_internal_maze() -> None:
         for row in maze.maze_grid
         for cell in row
     )
+
+
+def test_find_reserved_positions() -> None:
+    """Verify that reserved generator cells are preserved by position."""
+
+    raw_maze = [
+        [0, 15],
+        [15, 0],
+    ]
+
+    reserved_positions = find_reserved_positions(raw_maze)
+
+    assert reserved_positions == frozenset({
+        (1, 0),
+        (0, 1),
+    })
