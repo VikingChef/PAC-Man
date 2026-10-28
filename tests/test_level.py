@@ -244,3 +244,59 @@ def test_collect_pacgum_returns_none_when_empty() -> None:
 
     # Empty positions should be handled normally rather than raising an error.
     assert collected is None
+
+
+def test_level_is_not_complete_with_pacgums() -> None:
+    """Verify that a level with pacgums remaining is not complete."""
+
+    config = LevelConfig(
+        number=1,
+        width=1,
+        height=1,
+    )
+
+    maze = Maze([[Wall.NONE]])
+
+    player = Player(
+        spawn_position=(0, 0),
+        spawn_direction=Direction.EAST,
+    )
+
+    level = Level(
+        config=config,
+        maze=maze,
+        player=player,
+        time_limit=90,
+        pacgums={
+            (0, 0): PacgumType.PACGUM,
+        },
+    )
+
+    assert level.is_complete is False
+
+
+def test_level_is_complete_without_pacgums() -> None:
+    """Verify that a level without pacgums is complete."""
+
+    config = LevelConfig(
+        number=1,
+        width=1,
+        height=1,
+    )
+
+    maze = Maze([[Wall.NONE]])
+
+    player = Player(
+        spawn_position=(0, 0),
+        spawn_direction=Direction.EAST,
+    )
+
+    level = Level(
+        config=config,
+        maze=maze,
+        player=player,
+        time_limit=90,
+        pacgums={},
+    )
+
+    assert level.is_complete is True

@@ -49,3 +49,11 @@ class Level:
         """Return whether remaining_time has reached zero."""
 
         return self.remaining_time == 0
+
+    @property
+    def is_complete(
+        self,
+    ) -> bool:
+        """Return whether the level is complete."""
+
+        return not self.pacgums

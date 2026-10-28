@@ -166,3 +166,49 @@ def test_move_player_moves_active_player() -> None:
     assert moved is True
     assert player.position != start_position
     assert player.direction == direction
+
+
+def test_advance_level_creates_next_level() -> None:
+    """Verify that advancing creates the next configured level."""
+
+    # Extend the standard test configuration with a second playable level.
+    config = _test_config()
+
+    config.levels.append(
+        LevelConfig(
+            number=2,
+            width=21,
+            height=21,
+        )
+    )
+
+    # Start a game on level one and keep its Level object for comparison.
+    app = PacManApp(config)
+    app.start_new_game()
+
+    first_level = app.active_level
+
+    # Advance from level one into the next configured level.
+    app._advance_level()
+
+    # Progression should update the run state and replace the active Level.
+    assert app.game_state is not None
+    assert app.game_state.current_level == 2
+    assert app.active_level is not first_level
+
+
+def test_advance_level_reaches_victory_after_final_level() -> None:
+    """Verify that advancing past the final level enters victory."""
+
+    # Use the standard single-level configuration so level one is final.
+    config = _test_config()
+
+    # Start a game on the only configured level.
+    app = PacManApp(config)
+    app.start_new_game()
+
+    # Attempt to advance after completing the final level.
+    app._advance_level()
+
+    # Final-level progression should enter the victory state.
+    assert app.state == AppState.VICTORY

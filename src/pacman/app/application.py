@@ -1,6 +1,7 @@
 """Application orchestrator for Pac-Man."""
 
 from enum import Enum, auto
+from random import randint
 
 from pacman.app.actions import MainMenuAction
 from pacman.config.models import GameConfig
@@ -130,8 +131,45 @@ class PacManApp:
         elif collected_pacgum == PacgumType.SUPER_PACGUM:
             self.game_state.score += self.config.points_per_super_pacgum
 
+        # Advance once collecting the final pacgum completes the level.
+        if self.active_level.is_complete:
+            self._advance_level()
+
         # Preserve the movement contract: a successful move returns True.
         return True
+
+    def _advance_level(
+        self,
+    ) -> None:
+        """Advance the player to the next level."""
+
+        # Level progression requires an active run-wide game state.
+        if self.game_state is None:
+            return
+
+        # Completing the final configured level ends the run in victory.
+        if self.game_state.current_level >= len(self.config.levels):
+            self.change_state(AppState.VICTORY)
+            return
+
+        # Advance the run-wide level number before selecting its configuration.
+        self.game_state.current_level += 1
+
+        # Convert the one-based level number to the zero-based config index.
+        next_level_config = self.config.levels[
+            self.game_state.current_level - 1
+        ]
+
+        # Later levels use a fresh random seed instead of the fixed first seed.
+        next_level_seed = randint(0, 2**31 - 1)
+
+        # Replace the current level while preserving run-wide score and lives.
+        self.active_level = create_level(
+            config=next_level_config,
+            seed=next_level_seed,
+            time_limit=self.config.level_max_time,
+            pacgum_count=self.config.pacgum,
+        )
 
     def _handle_main_menu_action(
         self,
