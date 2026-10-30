@@ -1,7 +1,7 @@
 """Represent Pac-Man's player state and movement behaviour."""
 
-from pacman.maze.direction import Direction
-from pacman.maze.maze import Maze
+from src.pacman.maze.direction import Direction
+from src.pacman.maze.maze import Maze
 
 
 class Player:

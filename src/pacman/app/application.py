@@ -7,6 +7,10 @@ from src.pacman.app.actions import MainMenuAction, MainMenu, CharacterSelect
 from src.pacman.app.actions import LoadingBar, center, CharSelectAction
 from src.pacman.config.models import GameConfig
 from src.pacman.game.state import GameState
+from src.pacman.game.level_factory import create_level
+from src.pacman.game.level import Level
+from src.pacman.game.pacgum import PacgumType
+from src.pacman.maze.direction import Direction
 from types import TracebackType
 import pygame as pg
 import os
@@ -65,6 +69,9 @@ class PacManApp:
 
         self.queen_chosen: CharSelectAction | None = None
 
+        # Create the active level only when a new game starts.
+        self.active_level: Level | None = None
+
     @property
     def bg_pos(self) -> tuple[int, int]:
         if self.bg == []:
@@ -79,9 +86,6 @@ class PacManApp:
                 self.bg[0].get_height(),
             )
             return (bg_x, bg_y)
-
-        # Create the active level only when a new game starts.
-        self.active_level: Level | None = None
 
     def run(self) -> None:
         """Run the Pac-Man application."""
@@ -187,9 +191,10 @@ class PacManApp:
             self.loading.render_bar(
                     min(
                         4,
-                        len(self.bg) * 5 // self.bg_files,
+                        len(self.bg) * 5 // self.bg_files
                     )
                 )
+
     def move_player(self, direction: Direction) -> bool:
         """Move the active player in the requested direction."""
 
@@ -278,6 +283,13 @@ class PacManApp:
         self,
         action: CharSelectAction
     ) -> None:
+        """Handle events coming from the Character Selection Menu.
+
+        Args:
+            action (CharSelectAction): Action (clicks) in character
+                                       selection menu.
+        """
+
         if action == CharSelectAction.WAKA_WAKA_WANDA:
             self.change_queen(CharSelectAction.WAKA_WAKA_WANDA)
             self.change_state(AppState.PLAYING)

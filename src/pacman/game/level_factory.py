@@ -4,12 +4,12 @@ from random import Random
 
 from mazegenerator.mazegenerator import MazeGenerator
 
-from pacman.config.models import LevelConfig
-from pacman.game.level import Level
-from pacman.game.pacgum_factory import pacgum_factory
-from pacman.game.player import Player
-from pacman.maze.adapter import adapt_maze
-from pacman.maze.direction import Direction
+from src.pacman.config.models import LevelConfig
+from src.pacman.game.level import Level
+from src.pacman.game.pacgum_factory import pacgum_factory
+from src.pacman.game.player import Player
+from src.pacman.maze.adapter import adapt_maze
+from src.pacman.maze.direction import Direction
 
 
 def create_level(

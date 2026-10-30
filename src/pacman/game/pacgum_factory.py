@@ -2,8 +2,8 @@
 
 from random import Random
 
-from pacman.game.pacgum import PacgumType
-from pacman.maze.maze import Maze
+from src.pacman.game.pacgum import PacgumType
+from src.pacman.maze.maze import Maze
 
 
 def pacgum_factory(

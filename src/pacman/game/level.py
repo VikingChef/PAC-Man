@@ -2,6 +2,8 @@
 
 from src.pacman.config.models import LevelConfig
 from src.pacman.maze.maze import Maze
+from src.pacman.game.pacgum import PacgumType
+from src.pacman.game.player import Player
 
 
 class Level:
