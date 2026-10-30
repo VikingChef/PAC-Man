@@ -3,7 +3,7 @@
 from enum import Enum, auto
 
 from src.pacman.app.actions import MainMenuAction, MainMenu, CharacterSelect
-from src.pacman.app.actions import LoadingBar, center
+from src.pacman.app.actions import LoadingBar, center, CharSelectAction
 from src.pacman.config.models import GameConfig
 from src.pacman.game.state import GameState
 from types import TracebackType
@@ -61,6 +61,8 @@ class PacManApp:
         self.main_menu: MainMenu = MainMenu(self.screen)
         self.char_select: CharacterSelect = CharacterSelect(self.screen)
         self.loading: LoadingBar = LoadingBar(self.screen)
+
+        self.queen_chosen: CharSelectAction | None = None
 
     @property
     def bg_pos(self) -> tuple[int, int]:
@@ -120,7 +122,10 @@ class PacManApp:
         """Change the current application state."""
 
         # Keep all application state transitions in one place.
-        self.state = new_state
+        self.state: AppState = new_state
+
+    def change_queen(self, new_queen: CharSelectAction) -> None:
+        self.queen_chosen: CharSelectAction = new_queen
 
     def stop(self) -> None:
         """Stop the Pac-Man application."""
@@ -136,6 +141,15 @@ class PacManApp:
             if event.type == pg.KEYDOWN:
                 if event.key == pg.K_ESCAPE:
                     self.stop()
+
+            if self.state == AppState.MAIN_MENU:
+                menu_state: MainMenuAction = self.main_menu.handle_event(event)
+                self._handle_main_menu_action(menu_state)
+            elif self.state == AppState.CHAR_SELECT:
+                char_state: CharSelectAction = (
+                    self.char_select.handle_event(event)
+                    )
+                self._handle_char_select_action(char_state)
 
     def start_new_game(self) -> None:
         """Create the state for a new Pac-Man game."""
@@ -166,7 +180,7 @@ class PacManApp:
 
     def _handle_main_menu_action(
         self,
-        action: MainMenuAction,
+        action: MainMenuAction
     ) -> None:
         """Handle an action selected from the main menu."""
 
@@ -180,6 +194,19 @@ class PacManApp:
         elif action == MainMenuAction.EXIT:
             self.stop()
 
+    def _handle_char_select_action(
+        self,
+        action: CharSelectAction
+    ) -> None:
+        if action == CharSelectAction.WAKA_WAKA_WANDA:
+            self.change_queen(CharSelectAction.WAKA_WAKA_WANDA)
+            self.change_state(AppState.PLAYING)
+        elif action == CharSelectAction.MS_POWER_PELLET:
+            self.change_queen(CharSelectAction.MS_POWER_PELLET)
+            self.change_state(AppState.PLAYING)
+        elif action == CharSelectAction.MAIN_MENU:
+            self.change_state(AppState.MAIN_MENU)
+
     def _run_main_menu(self) -> None:
         """Handle the main menu application state."""
 
@@ -192,7 +219,7 @@ class PacManApp:
 
         self.screen.blit(
             self.bg[bg_frame],
-            self.bg_pos,
+            self.bg_pos
         )
         self.main_menu.render_main_menu(
             self.start_time,
@@ -203,7 +230,18 @@ class PacManApp:
     def _run_char_select(self) -> None:
         """Handle the character select application state."""
 
-        pass
+        mouse: tuple[int, int] = pg.mouse.get_pos()
+        now: float = time.time() * 1000
+        bg_frame: int = (
+            int(now - self.start_time) // 100
+        ) % len(self.bg)
+
+        self.screen.blit(
+            self.bg[bg_frame],
+            self.bg_pos
+        )
+
+        self.char_select.render_char_select(mouse, self.screen)
 
     def _run_game(self) -> None:
         """Handle the active gameplay application state."""

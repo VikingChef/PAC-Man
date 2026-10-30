@@ -23,6 +23,14 @@ class MainMenuAction(Enum):
     EXIT = auto()
 
 
+class CharSelectAction(Enum):
+    """Actions available from the Character Select menu."""
+
+    MAIN_MENU = auto()
+    WAKA_WAKA_WANDA = auto()
+    MS_POWER_PELLET = auto()
+
+
 class Button:
     """Button class generates button objects, like Start Game."""
 
@@ -50,7 +58,6 @@ class Button:
             self.button.get_width(),
             self.button.get_height(),
         )
-        self.clicked: bool = False
         self.hover_offset: tuple[int, int] = hover_offset
 
     @property
@@ -152,7 +159,7 @@ class MainMenu:
         self,
         start_time: float,
         mouse: tuple[int, int],
-        screen: pg.Surface,
+        screen: pg.Surface
     ) -> None:
         now: float = time.time() * 1000
         mx, my = mouse
@@ -172,28 +179,17 @@ class MainMenu:
             else:
                 button.render_button(screen)
 
-    def handle_event(self, event) -> None:
-        mx, my = event.pos
-        if (
-            event.type == pg.MOUSEBUTTONDOWN
-            and self.start_game.hovering(mx, my)
-        ):
-            return MainMenuAction.START_GAME
-        elif (
-            event.type == pg.MOUSEBUTTONDOWN
-            and self.instr.hovering(mx, my)
-        ):
-            return MainMenuAction.SHOW_INSTRUCTIONS
-        elif (
-            event.type == pg.MOUSEBUTTONDOWN
-            and self.high_scores.hovering(mx, my)
-        ):
-            return MainMenuAction.VIEW_HIGHSCORES
-        elif (
-            event.type == pg.MOUSEBUTTONDOWN
-            and self.exit.hovering(mx, my)
-        ):
-            return MainMenuAction.EXIT
+    def handle_event(self, event) -> MainMenuAction:
+        if event.type == pg.MOUSEBUTTONDOWN:
+            mx, my = event.pos
+            if self.start_game.hovering(mx, my):
+                return MainMenuAction.START_GAME
+            elif self.instr.hovering(mx, my):
+                return MainMenuAction.SHOW_INSTRUCTIONS
+            elif self.high_scores.hovering(mx, my):
+                return MainMenuAction.VIEW_HIGHSCORES
+            elif self.exit.hovering(mx, my):
+                return MainMenuAction.EXIT
 
 
 class CharacterSelect:
@@ -240,7 +236,7 @@ class CharacterSelect:
 
         choose_x: int = center(
             screen.get_width(),
-            self.choose.get_width(),
+            self.choose.get_width()
         )
         self.choose_pos: tuple[int, int] = (choose_x, 100)
 
@@ -251,7 +247,7 @@ class CharacterSelect:
         )
         self.waka_pos: tuple[int, int] = (
             waka_x,
-            self.queen_1.pos[1] + 250,
+            self.queen_1.pos[1] + 250
         )
 
         ms_pellet_x: int = (
@@ -265,7 +261,7 @@ class CharacterSelect:
         )
         self.ms_pellet_pos: tuple[int, int] = (
             ms_pellet_x,
-            ms_pellet_y,
+            ms_pellet_y
         )
 
         self.back_button: Button = Button(
@@ -304,6 +300,16 @@ class CharacterSelect:
         screen.blit(self.waka, self.waka_pos)
         screen.blit(self.ms_pellet, self.ms_pellet_pos)
         screen.blit(self.back_to_main, self.back_to_main_pos)
+
+    def handle_event(self, event) -> CharSelectAction:
+        if event.type == pg.MOUSEBUTTONDOWN:
+            mx, my = event.pos
+            if self.queen_1.hovering(mx, my):
+                return CharSelectAction.WAKA_WAKA_WANDA
+            elif self.queen_2.hovering(mx, my):
+                return CharSelectAction.MS_POWER_PELLET
+            elif self.back_button.hovering(mx, my):
+                return CharSelectAction.MAIN_MENU
 
 
 class LoadingBar:
@@ -382,112 +388,6 @@ class UI:
             )
             return (bg_x, bg_y)
 
-    def _get_events(self, mouse: tuple[int, int]) -> None:
-        mx, my = mouse
-        for event in pg.event.get():
-            if event.type == pg.QUIT:
-                self.running = False
-
-            if event.type == pg.KEYDOWN:
-                if event.key == pg.K_ESCAPE:
-                    self.running = False
-            if (event.type == pg.MOUSEBUTTONDOWN
-               and self.char_select.back_button.hovering(mx, my)):
-                self.main_menu.start_game.clicked = False
-
-            # if not self.main_menu.start_game.clicked:
-
-            # else:
-            #     for queen in self.char_select.QUEENS:
-            #         if (
-            #             event.type == pg.MOUSEBUTTONDOWN
-            #             and queen.hovering(mx, my)
-            #         ):
-            #             queen.clicked = True
-
-    def render(self) -> None:
-        """Render main menu"""
-
-        start_time: float = time.time() * 1000
-
-        while self.running:
-            iter_start: float = time.time()
-
-            frame: pg.Surface | None = next(
-                self.frame_gen,
-                None
-            )
-
-            if frame is not None:
-                self.bg.append(frame)
-                self.loading.render_bar(
-                    min(
-                        4,
-                        len(self.bg) * 5 // self.bg_files,
-                    )
-                )
-            else:
-                mouse: tuple[int, int] = pg.mouse.get_pos()
-
-                # tracking events such as quitting the program
-                self._get_events(mouse)
-
-                now: float = time.time() * 1000
-                bg_frame: int = (
-                    int(now - start_time) // 100
-                ) % len(self.bg)
-
-                self.screen.blit(
-                    self.bg[bg_frame],
-                    self.bg_pos,
-                )
-
-                if not self.main_menu.start_game.clicked:
-                    self.main_menu.render_main_menu(
-                        start_time,
-                        mouse,
-                        self.screen
-                    )
-                else:
-                    self.char_select.render_char_select(
-                        mouse,
-                        self.screen
-                    )
-
-            pg.display.flip()
-
-            iter_end: float = time.time()
-            time.sleep(
-                max(
-                    0,
-                    1 / 60 - (iter_end - iter_start),
-                )
-            )
-
-    def _test_actions(self) -> None:
-        """Test actions until there is proper actions in-place."""
-
-        print(
-            "High Scores clicked."
-            if self.main_menu.high_scores.clicked
-            else "High Scores not clicked."
-        )
-        print(
-            "Instructions were shown."
-            if self.main_menu.instr.clicked
-            else "Instructions were not shown."
-        )
-        print(
-            "Waka Waka Wanda was chosen."
-            if self.char_select.queen_1.clicked
-            else "Waka Waka Wanda wasn't chosen."
-        )
-        print(
-            "Ms. Power Pellet was chosen."
-            if self.char_select.queen_2.clicked
-            else "Ms. Power Pellet wasn't chosen."
-        )
-
 
 def load_trans_image(path: str) -> pg.Surface:
     return pg.image.load(path).convert_alpha()
@@ -509,17 +409,3 @@ def load_frames(path: str) -> Iterator[pg.Surface]:
         yield pg.image.load(
             f'{path}/{frame}'
         ).convert()
-
-
-def start_UI() -> None:
-    """Main function for starting the UI."""
-
-    ui: UI = UI()
-    ui.render()
-    ui._test_actions()
-
-
-if __name__ == "__main__":
-    pg.init()
-    start_UI()
-    pg.quit()
