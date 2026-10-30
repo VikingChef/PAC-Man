@@ -2,10 +2,8 @@
 
 import sys
 from pathlib import Path
-
-from pacman.app.application import PacManApp
-from pacman.config.loader import load_config
-import pygame as pg
+from src.pacman.app.application import PacManApp
+from src.pacman.config.loader import load_config, GameConfig
 
 
 def main() -> None:
@@ -13,20 +11,18 @@ def main() -> None:
 
     if len(sys.argv) != 2:
         print("Usage: python3 pac-man.py config.json", file=sys.stderr)
-        return
+        exit(1)
 
-    config_path = Path(sys.argv[1])
+    config_path: Path = Path(sys.argv[1])
 
     try:
-        config = load_config(config_path)
+        config: GameConfig = load_config(config_path)
     except RuntimeError as error:
-        print(error)
-        return
+        print(error, file=sys.stderr)
+        exit(1)
 
-    app = PacManApp(config)
-    pg.init()
-    app.run()
-    pg.quit()
+    with PacManApp(config) as app:
+        app.run()
 
 
 if __name__ == "__main__":

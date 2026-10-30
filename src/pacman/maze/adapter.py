@@ -2,8 +2,8 @@
 
 from mazegenerator.mazegenerator import MazeGenerator
 
-from pacman.maze.maze import Maze
-from pacman.maze.wall import Wall
+from src.pacman.maze.maze import Maze
+from src.pacman.maze.wall import Wall
 
 
 WALL_BIT_MAP = {
