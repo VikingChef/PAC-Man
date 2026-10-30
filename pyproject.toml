@@ -2,15 +2,20 @@
 name = "pac-man"
 version = "0.1.0"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "pygame-ce>=2.5.8",
+    "mazegenerator",
+]
 
 [dependency-groups]
 dev = [
     "flake8>=7.4.1",
     "mypy>=2.4.0",
     "pytest>=9.1.1",
-    "pygame>=2.6.1",
 ]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+
+[tool.uv.sources]
+mazegenerator = { path = "./packages/mazegenerator-2.1.0-py3-none-any.whl"}

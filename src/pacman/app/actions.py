@@ -4,7 +4,6 @@
 
 from enum import Enum, auto
 from typing import Final
-from types import TracebackType
 import pygame as pg
 import time
 import os
@@ -24,14 +23,6 @@ class MainMenuAction(Enum):
     EXIT = auto()
 
 
-"""NOTE DELETE LATER:
-UNHOVERED HEIGHT: 300
-UNHOVERED WIDTH: 405
-HOVERED HEIGTH: 350
-HOVERED WIDTH: 470
-"""
-
-
 class Button:
     """Button class generates button objects, like Start Game."""
 
@@ -40,7 +31,7 @@ class Button:
         path: str,
         hover_path: str,
         pos: tuple[int, int] = (0, 0),
-        hover_offset: tuple[int, int] = (45, 30),
+        hover_offset: tuple[int, int] = (45, 30)
     ) -> None:
         """Initialize a Button object.
 
@@ -181,26 +172,39 @@ class MainMenu:
             else:
                 button.render_button(screen)
 
-        for event in pg.event.get():
-            for button in self.BUTTONS:
-                if (
-                    event.type == pg.MOUSEBUTTONDOWN
-                    and button.hovering(mx, my)
-                ):
-                    button.clicked = True
-                    if button == self.exit:
-                        self.running = False
+    def handle_event(self, event) -> None:
+        mx, my = event.pos
+        if (
+            event.type == pg.MOUSEBUTTONDOWN
+            and self.start_game.hovering(mx, my)
+        ):
+            return MainMenuAction.START_GAME
+        elif (
+            event.type == pg.MOUSEBUTTONDOWN
+            and self.instr.hovering(mx, my)
+        ):
+            return MainMenuAction.SHOW_INSTRUCTIONS
+        elif (
+            event.type == pg.MOUSEBUTTONDOWN
+            and self.high_scores.hovering(mx, my)
+        ):
+            return MainMenuAction.VIEW_HIGHSCORES
+        elif (
+            event.type == pg.MOUSEBUTTONDOWN
+            and self.exit.hovering(mx, my)
+        ):
+            return MainMenuAction.EXIT
 
 
 class CharacterSelect:
     def __init__(self, screen: pg.Surface):
         self.queen_1: Button = Button(
             'queen-1.png',
-            'queen-1-hover.png',
+            'queen-1-hover.png'
         )
         x: int = center(
             screen.get_width() // 2,
-            self.queen_1.button.get_width(),
+            self.queen_1.button.get_width()
         )
         y: int = 200
         self.queen_1.pos = (x, y)
@@ -208,7 +212,7 @@ class CharacterSelect:
         self.queen_2: Button = Button(
             'queen-2.png',
             'queen-2-hover.png',
-            hover_offset=(10, 30),
+            hover_offset=(10, 30)
         )
         x = int(
             screen.get_width() / 4 * 3
@@ -264,10 +268,24 @@ class CharacterSelect:
             ms_pellet_y,
         )
 
+        self.back_button: Button = Button(
+            'go-back-symbol.png',
+            'go-back-symbol-hover.png',
+            pos=(0, screen.get_height() - 140),
+            hover_offset=(-20, 50)
+            )
+        self.back_to_main: pg.Surface = load_trans_image(
+            f'{IMAGES}/back-to-main-menu.png'
+        )
+        self.back_to_main_pos: tuple[int, int] = (
+            10,
+            screen.get_height() - 40
+            )
+
     def render_char_select(
         self,
         mouse: tuple[int, int],
-        screen: pg.Surface,
+        screen: pg.Surface
     ) -> None:
         mx, my = mouse
 
@@ -277,17 +295,15 @@ class CharacterSelect:
             else:
                 queen.render_button(screen)
 
+        if self.back_button.hovering(mx, my):
+            self.back_button.render_hover_button(screen)
+        else:
+            self.back_button.render_button(screen)
+
         screen.blit(self.choose, self.choose_pos)
         screen.blit(self.waka, self.waka_pos)
         screen.blit(self.ms_pellet, self.ms_pellet_pos)
-
-        for event in pg.event.get():
-            for queen in self.QUEENS:
-                if (
-                    event.type == pg.MOUSEBUTTONDOWN
-                    and queen.hovering(mx, my)
-                ):
-                    queen.clicked = True
+        screen.blit(self.back_to_main, self.back_to_main_pos)
 
 
 class LoadingBar:
@@ -319,13 +335,14 @@ class LoadingBar:
         self.screen: pg.Surface = screen
 
     def render_bar(self, frame: int) -> None:
+        self.screen.fill((255, 255, 255))
         self.screen.blit(
             self.frames[frame],
-            self.frame_pos,
+            self.frame_pos
         )
         self.screen.blit(
             self.text,
-            self.text_pos,
+            self.text_pos
         )
 
 
@@ -365,6 +382,29 @@ class UI:
             )
             return (bg_x, bg_y)
 
+    def _get_events(self, mouse: tuple[int, int]) -> None:
+        mx, my = mouse
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                self.running = False
+
+            if event.type == pg.KEYDOWN:
+                if event.key == pg.K_ESCAPE:
+                    self.running = False
+            if (event.type == pg.MOUSEBUTTONDOWN
+               and self.char_select.back_button.hovering(mx, my)):
+                self.main_menu.start_game.clicked = False
+
+            # if not self.main_menu.start_game.clicked:
+
+            # else:
+            #     for queen in self.char_select.QUEENS:
+            #         if (
+            #             event.type == pg.MOUSEBUTTONDOWN
+            #             and queen.hovering(mx, my)
+            #         ):
+            #             queen.clicked = True
+
     def render(self) -> None:
         """Render main menu"""
 
@@ -375,7 +415,7 @@ class UI:
 
             frame: pg.Surface | None = next(
                 self.frame_gen,
-                None,
+                None
             )
 
             if frame is not None:
@@ -387,16 +427,10 @@ class UI:
                     )
                 )
             else:
-                mx, my = pg.mouse.get_pos()
+                mouse: tuple[int, int] = pg.mouse.get_pos()
 
                 # tracking events such as quitting the program
-                for event in pg.event.get():
-                    if event.type == pg.QUIT:
-                        self.running = False
-
-                    if event.type == pg.KEYDOWN:
-                        if event.key == pg.K_ESCAPE:
-                            self.running = False
+                self._get_events(mouse)
 
                 now: float = time.time() * 1000
                 bg_frame: int = (
@@ -411,13 +445,13 @@ class UI:
                 if not self.main_menu.start_game.clicked:
                     self.main_menu.render_main_menu(
                         start_time,
-                        (mx, my),
-                        self.screen,
+                        mouse,
+                        self.screen
                     )
                 else:
                     self.char_select.render_char_select(
-                        (mx, my),
-                        self.screen,
+                        mouse,
+                        self.screen
                     )
 
             pg.display.flip()
@@ -454,31 +488,6 @@ class UI:
             else "Ms. Power Pellet wasn't chosen."
         )
 
-    def __enter__(self) -> 'UI':
-        """Dunder method for context managers.
-
-        Returns:
-            Visualizer: Visualizer object
-        """
-        return self
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: TracebackType | None,
-    ) -> None:
-        """Dunder method for context managers.
-
-        Args:
-            exc_type (type[BaseException] | None): Class of the exception
-                raised inside the ``with`` block, or None if it exited
-                normally.
-            exc (BaseException | None): The exception instance, or None.
-            tb (TracebackType | None): Traceback of the exception, or None.
-        """
-        pg.quit()
-
 
 def load_trans_image(path: str) -> pg.Surface:
     return pg.image.load(path).convert_alpha()
@@ -505,10 +514,12 @@ def load_frames(path: str) -> Iterator[pg.Surface]:
 def start_UI() -> None:
     """Main function for starting the UI."""
 
-    with UI() as ui:
-        ui.render()
-        ui._test_actions()
+    ui: UI = UI()
+    ui.render()
+    ui._test_actions()
 
 
 if __name__ == "__main__":
+    pg.init()
     start_UI()
+    pg.quit()

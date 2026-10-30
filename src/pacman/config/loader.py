@@ -4,7 +4,7 @@ import json
 import logging
 from pathlib import Path
 
-from pacman.config.models import GameConfig, LevelConfig
+from src.pacman.config.models import GameConfig, LevelConfig
 
 logger = logging.getLogger(__name__)
 
