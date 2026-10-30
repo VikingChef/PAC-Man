@@ -11,13 +11,25 @@ class Level:
         self,
         config: LevelConfig,
         maze: Maze,
+        player: Player,
         time_limit: int,
+        pacgums: dict[tuple[int, int], PacgumType],
     ) -> None:
         """Receive the initial pieces for one level, and create level state."""
 
         self.config = config
         self.maze = maze
         self.remaining_time = time_limit
+        self.player = player
+        self.pacgums = pacgums
+
+    def collect_pacgum(
+        self,
+        position: tuple[int, int],
+    ) -> PacgumType | None:
+        """Remove and return the pacgum at a position, if present."""
+
+        return self.pacgums.pop(position, None)
 
     def tick(
         self,
@@ -32,6 +44,14 @@ class Level:
 
     @property
     def is_time_up(self) -> bool:
-        """Return whether remaining_time has reached zero"""
+        """Return whether remaining_time has reached zero."""
 
         return self.remaining_time == 0
+
+    @property
+    def is_complete(
+        self,
+    ) -> bool:
+        """Return whether the level is complete."""
+
+        return not self.pacgums

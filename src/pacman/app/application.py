@@ -1,6 +1,7 @@
 """Application orchestrator for Pac-Man."""
 
 from enum import Enum, auto
+from random import randint
 
 from src.pacman.app.actions import MainMenuAction, MainMenu, CharacterSelect
 from src.pacman.app.actions import LoadingBar, center, CharSelectAction
@@ -79,6 +80,9 @@ class PacManApp:
             )
             return (bg_x, bg_y)
 
+        # Create the active level only when a new game starts.
+        self.active_level: Level | None = None
+
     def run(self) -> None:
         """Run the Pac-Man application."""
 
@@ -154,14 +158,23 @@ class PacManApp:
     def start_new_game(self) -> None:
         """Create the state for a new Pac-Man game."""
 
-        # Build a fresh run from the validated configuration.
+        # Build fresh run-wide state from the validated configuration.
         self.game_state = GameState(
             score=0,
             lives=self.config.lives,
             current_level=1,
         )
 
-        # Move into gameplay once the new run is ready.
+        # Build the first playable level and its active game state.
+        first_level_config = self.config.levels[0]
+        self.active_level = create_level(
+            config=first_level_config,
+            seed=self.config.seed,
+            time_limit=self.config.level_max_time,
+            pacgum_count=self.config.pacgum,
+        )
+
+        # Move into gameplay once the new run and level are ready.
         self.change_state(AppState.PLAYING)
 
     def _load_bg(self) -> None:
@@ -177,6 +190,73 @@ class PacManApp:
                         len(self.bg) * 5 // self.bg_files,
                     )
                 )
+    def move_player(self, direction: Direction) -> bool:
+        """Move the active player in the requested direction."""
+
+        # Gameplay movement requires both an active level and run-wide state.
+        if self.active_level is None or self.game_state is None:
+            return False
+
+        # Delegate movement to the Player and stop if the maze blocks the move.
+        moved = self.active_level.player.move(
+            self.active_level.maze,
+            direction,
+        )
+
+        if not moved:
+            return False
+
+        # Check the player's new position and remove any pacgum found there.
+        collected_pacgum = self.active_level.collect_pacgum(
+            self.active_level.player.position,
+        )
+
+        # Apply the configured score for the collected pacgum type.
+        if collected_pacgum == PacgumType.PACGUM:
+            self.game_state.score += self.config.points_per_pacgum
+
+        elif collected_pacgum == PacgumType.SUPER_PACGUM:
+            self.game_state.score += self.config.points_per_super_pacgum
+
+        # Advance once collecting the final pacgum completes the level.
+        if self.active_level.is_complete:
+            self._advance_level()
+
+        # Preserve the movement contract: a successful move returns True.
+        return True
+
+    def _advance_level(
+        self,
+    ) -> None:
+        """Advance the player to the next level."""
+
+        # Level progression requires an active run-wide game state.
+        if self.game_state is None:
+            return
+
+        # Completing the final configured level ends the run in victory.
+        if self.game_state.current_level >= len(self.config.levels):
+            self.change_state(AppState.VICTORY)
+            return
+
+        # Advance the run-wide level number before selecting its configuration.
+        self.game_state.current_level += 1
+
+        # Convert the one-based level number to the zero-based config index.
+        next_level_config = self.config.levels[
+            self.game_state.current_level - 1
+        ]
+
+        # Later levels use a fresh random seed instead of the fixed first seed.
+        next_level_seed = randint(0, 2**31 - 1)
+
+        # Replace the current level while preserving run-wide score and lives.
+        self.active_level = create_level(
+            config=next_level_config,
+            seed=next_level_seed,
+            time_limit=self.config.level_max_time,
+            pacgum_count=self.config.pacgum,
+        )
 
     def _handle_main_menu_action(
         self,
@@ -247,7 +327,8 @@ class PacManApp:
         """Handle the active gameplay application state."""
 
         # Gameplay systems will be coordinated from here.
-        pass
+        if self.game_state is None or self.active_level is None:
+            return
 
     def _run_pause_menu(self) -> None:
         """Handle the paused application state."""
