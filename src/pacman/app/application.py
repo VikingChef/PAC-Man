@@ -1,17 +1,22 @@
 """Application orchestrator for Pac-Man."""
 
+import os
+import time
+from collections.abc import Iterator
 from enum import Enum, auto
 from random import randint
-
-from src.pacman.app.actions import MainMenuAction, MainMenu, CharacterSelect
-from src.pacman.app.actions import LoadingBar, center, CharSelectAction
-from src.pacman.config.models import GameConfig
-from src.pacman.game.state import GameState
 from types import TracebackType
+
 import pygame as pg
-import os
-from collections.abc import Iterator
-import time
+
+from pacman.app.actions import CharacterSelect, CharSelectAction
+from pacman.app.actions import LoadingBar, MainMenu, MainMenuAction, center
+from pacman.config.models import GameConfig
+from pacman.game.level import Level
+from pacman.game.level_factory import create_level
+from pacman.game.pacgum import PacgumType
+from pacman.game.state import GameState
+from pacman.maze.direction import Direction
 
 
 class AppState(Enum):
@@ -44,17 +49,21 @@ class PacManApp:
         # Track whether the main application loop should continue.
         self.running = True
 
-        # Track start time for animations
+        # Track start time for animations.
         self.start_time: float = time.time() * 1000
 
         # Create run-specific game state only when a new game starts.
         self.game_state: GameState | None = None
+
+        # Create the active level only when a new game starts.
+        self.active_level: Level | None = None
+
         self.screen: pg.Surface = pg.display.set_mode(
             flags=pg.FULLSCREEN
         )
 
-        # Background
-        path: str = './src/pacman/app/images/bg-frames'
+        # Background.
+        path: str = "./src/pacman/app/images/bg-frames"
         self.bg_files: int = len(os.listdir(path))
         self.frame_gen: Iterator[pg.Surface] = load_frames(path)
         self.bg: list[pg.Surface] = []
@@ -69,19 +78,17 @@ class PacManApp:
     def bg_pos(self) -> tuple[int, int]:
         if self.bg == []:
             return (0, 0)
-        else:
-            bg_x: int = center(
-                self.screen.get_width(),
-                self.bg[0].get_width(),
-            )
-            bg_y: int = center(
-                self.screen.get_height(),
-                self.bg[0].get_height(),
-            )
-            return (bg_x, bg_y)
 
-        # Create the active level only when a new game starts.
-        self.active_level: Level | None = None
+        bg_x: int = center(
+            self.screen.get_width(),
+            self.bg[0].get_width(),
+        )
+        bg_y: int = center(
+            self.screen.get_height(),
+            self.bg[0].get_height(),
+        )
+
+        return (bg_x, bg_y)
 
     def run(self) -> None:
         """Run the Pac-Man application."""
@@ -126,10 +133,10 @@ class PacManApp:
         """Change the current application state."""
 
         # Keep all application state transitions in one place.
-        self.state: AppState = new_state
+        self.state = new_state
 
     def change_queen(self, new_queen: CharSelectAction) -> None:
-        self.queen_chosen: CharSelectAction = new_queen
+        self.queen_chosen = new_queen
 
     def stop(self) -> None:
         """Stop the Pac-Man application."""
@@ -147,13 +154,20 @@ class PacManApp:
                     self.stop()
 
             if self.state == AppState.MAIN_MENU:
-                menu_state: MainMenuAction = self.main_menu.handle_event(event)
-                self._handle_main_menu_action(menu_state)
+                menu_state: MainMenuAction | None = (
+                    self.main_menu.handle_event(event)
+                )
+
+                if menu_state is not None:
+                    self._handle_main_menu_action(menu_state)
+
             elif self.state == AppState.CHAR_SELECT:
-                char_state: CharSelectAction = (
+                char_state: CharSelectAction | None = (
                     self.char_select.handle_event(event)
-                    )
-                self._handle_char_select_action(char_state)
+                )
+
+                if char_state is not None:
+                    self._handle_char_select_action(char_state)
 
     def start_new_game(self) -> None:
         """Create the state for a new Pac-Man game."""
@@ -179,17 +193,19 @@ class PacManApp:
 
     def _load_bg(self) -> None:
         frame: pg.Surface | None = next(
-                self.frame_gen,
-                None
-            )
+            self.frame_gen,
+            None,
+        )
+
         if frame is not None:
             self.bg.append(frame)
             self.loading.render_bar(
-                    min(
-                        4,
-                        len(self.bg) * 5 // self.bg_files,
-                    )
+                min(
+                    4,
+                    len(self.bg) * 5 // self.bg_files,
                 )
+            )
+
     def move_player(self, direction: Direction) -> bool:
         """Move the active player in the requested direction."""
 
@@ -260,7 +276,7 @@ class PacManApp:
 
     def _handle_main_menu_action(
         self,
-        action: MainMenuAction
+        action: MainMenuAction,
     ) -> None:
         """Handle an action selected from the main menu."""
 
@@ -276,14 +292,16 @@ class PacManApp:
 
     def _handle_char_select_action(
         self,
-        action: CharSelectAction
+        action: CharSelectAction,
     ) -> None:
         if action == CharSelectAction.WAKA_WAKA_WANDA:
             self.change_queen(CharSelectAction.WAKA_WAKA_WANDA)
-            self.change_state(AppState.PLAYING)
+            self.start_new_game()
+
         elif action == CharSelectAction.MS_POWER_PELLET:
             self.change_queen(CharSelectAction.MS_POWER_PELLET)
-            self.change_state(AppState.PLAYING)
+            self.start_new_game()
+
         elif action == CharSelectAction.MAIN_MENU:
             self.change_state(AppState.MAIN_MENU)
 
@@ -299,13 +317,14 @@ class PacManApp:
 
         self.screen.blit(
             self.bg[bg_frame],
-            self.bg_pos
+            self.bg_pos,
         )
+
         self.main_menu.render_main_menu(
             self.start_time,
             mouse,
-            self.screen
-            )
+            self.screen,
+        )
 
     def _run_char_select(self) -> None:
         """Handle the character select application state."""
@@ -318,10 +337,13 @@ class PacManApp:
 
         self.screen.blit(
             self.bg[bg_frame],
-            self.bg_pos
+            self.bg_pos,
         )
 
-        self.char_select.render_char_select(mouse, self.screen)
+        self.char_select.render_char_select(
+            mouse,
+            self.screen,
+        )
 
     def _run_game(self) -> None:
         """Handle the active gameplay application state."""
@@ -366,19 +388,20 @@ class PacManApp:
         # Instruction presentation will connect to the UI layer here.
         pass
 
-    def __enter__(self) -> 'PacManApp':
+    def __enter__(self) -> "PacManApp":
         """Dunder method for context managers.
 
         Returns:
             Visualizer: Visualizer object
         """
+
         return self
 
     def __exit__(
         self,
         exc_type: type[BaseException] | None,
         exc: BaseException | None,
-        tb: TracebackType | None
+        tb: TracebackType | None,
     ) -> None:
         """Dunder method for context managers.
 
@@ -389,6 +412,7 @@ class PacManApp:
             exc (BaseException | None): The exception instance, or None.
             tb (TracebackType | None): Traceback of the exception, or None.
         """
+
         pg.quit()
 
 
@@ -396,11 +420,11 @@ def load_frames(path: str) -> Iterator[pg.Surface]:
     dir_list: list[str] = sorted(
         os.listdir(path),
         key=lambda x: int(
-            x[x.find('_') + 1:x.find('.')]
+            x[x.find("_") + 1:x.find(".")]
         ),
     )
 
     for frame in dir_list:
         yield pg.image.load(
-            f'{path}/{frame}'
+            f"{path}/{frame}"
         ).convert()

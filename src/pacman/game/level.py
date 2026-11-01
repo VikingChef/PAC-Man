@@ -1,7 +1,9 @@
 """Represent an active Pac-Man level and its level-specific state."""
 
-from src.pacman.config.models import LevelConfig
-from src.pacman.maze.maze import Maze
+from pacman.config.models import LevelConfig
+from pacman.game.pacgum import PacgumType
+from pacman.game.player import Player
+from pacman.maze.maze import Maze
 
 
 class Level:
