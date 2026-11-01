@@ -3,6 +3,7 @@
 from pacman.config.models import LevelConfig
 from pacman.game.pacgum import PacgumType
 from pacman.game.player import Player
+from pacman.game.ghost import Ghost, GhostState
 from pacman.maze.maze import Maze
 
 
@@ -14,6 +15,7 @@ class Level:
         config: LevelConfig,
         maze: Maze,
         player: Player,
+        ghosts: list[Ghost],
         time_limit: int,
         pacgums: dict[tuple[int, int], PacgumType],
     ) -> None:
@@ -23,6 +25,7 @@ class Level:
         self.maze = maze
         self.remaining_time = time_limit
         self.player = player
+        self.ghosts = ghosts
         self.pacgums = pacgums
 
     def collect_pacgum(
@@ -32,6 +35,12 @@ class Level:
         """Remove and return the pacgum at a position, if present."""
 
         return self.pacgums.pop(position, None)
+
+    def frighten_ghosts(self) -> None:
+        """Set all ghosts in the level to the frightened state."""
+
+        for ghost in self.ghosts:
+            ghost.state = GhostState.FRIGHTENED
 
     def tick(
         self,

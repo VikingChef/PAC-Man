@@ -8,6 +8,7 @@ from pacman.config.models import LevelConfig
 from pacman.game.level import Level
 from pacman.game.pacgum_factory import pacgum_factory
 from pacman.game.player import Player
+from pacman.game.ghost_factory import create_ghosts
 from pacman.maze.adapter import adapt_maze
 from pacman.maze.direction import Direction
 
@@ -29,6 +30,9 @@ def create_level(
 
     # Cross the adapter boundary into our internal maze representation.
     maze = adapt_maze(generator)
+
+    # After the maze exists, create ghosts from that maze.
+    ghosts = create_ghosts(maze)
 
     # Place the player in the middle of the generated maze as required.
     spawn_position = (
@@ -57,6 +61,7 @@ def create_level(
         config=config,
         maze=maze,
         player=player,
+        ghosts=ghosts,
         time_limit=time_limit,
         pacgums=pacgums,
     )

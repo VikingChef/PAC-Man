@@ -1,6 +1,8 @@
 """Tests for active Pac-Man level state and timer behaviour."""
 
 from pacman.config.models import LevelConfig
+from pacman.game.ghost_factory import create_ghosts
+from pacman.game.ghost import GhostState
 from pacman.game.level import Level
 from pacman.game.pacgum import PacgumType
 from pacman.game.player import Player
@@ -31,6 +33,7 @@ def test_level_initializes_state() -> None:
         config=config,
         maze=maze,
         player=player,
+        ghosts=[],
         time_limit=90,
         pacgums={},
     )
@@ -65,6 +68,7 @@ def test_level_tick_reduces_remaining_time() -> None:
         config=config,
         maze=maze,
         player=player,
+        ghosts=[],
         time_limit=90,
         pacgums={},
     )
@@ -98,6 +102,7 @@ def test_level_tick_does_not_go_below_zero() -> None:
         config=config,
         maze=maze,
         player=player,
+        ghosts=[],
         time_limit=90,
         pacgums={},
     )
@@ -131,6 +136,7 @@ def test_time_is_up() -> None:
         config=config,
         maze=maze,
         player=player,
+        ghosts=[],
         time_limit=90,
         pacgums={},
     )
@@ -164,6 +170,7 @@ def test_time_is_left() -> None:
         config=config,
         maze=maze,
         player=player,
+        ghosts=[],
         time_limit=90,
         pacgums={},
     )
@@ -197,6 +204,7 @@ def test_collect_pacgum_removes_and_returns_pacgum() -> None:
         config=config,
         maze=maze,
         player=player,
+        ghosts=[],
         time_limit=90,
         pacgums={
             (0, 0): PacgumType.PACGUM,
@@ -235,6 +243,7 @@ def test_collect_pacgum_returns_none_when_empty() -> None:
         config=config,
         maze=maze,
         player=player,
+        ghosts=[],
         time_limit=90,
         pacgums={},
     )
@@ -266,6 +275,7 @@ def test_level_is_not_complete_with_pacgums() -> None:
         config=config,
         maze=maze,
         player=player,
+        ghosts=[],
         time_limit=90,
         pacgums={
             (0, 0): PacgumType.PACGUM,
@@ -295,8 +305,54 @@ def test_level_is_complete_without_pacgums() -> None:
         config=config,
         maze=maze,
         player=player,
+        ghosts=[],
         time_limit=90,
         pacgums={},
     )
 
     assert level.is_complete is True
+
+
+def test_ghosts_become_frightened() -> None:
+    """Verify that frighten_ghosts changes all ghost states."""
+
+    # Build a 21x21 open maze for the four ghosts.
+    config = LevelConfig(
+        number=1,
+        width=21,
+        height=21,
+    )
+
+    maze = Maze([
+        [Wall.NONE for _ in range(21)]
+        for _ in range(21)
+    ])
+
+    player = Player(
+        spawn_position=(10, 10),
+        spawn_direction=Direction.EAST,
+    )
+
+    # Create the four ghosts at their designated spawn positions.
+    ghosts = create_ghosts(maze)
+
+    # Create the level with our player and four ghosts.
+    level = Level(
+        config=config,
+        maze=maze,
+        player=player,
+        ghosts=ghosts,
+        time_limit=90,
+        pacgums={},
+    )
+
+    # Verify that all ghosts initially start enraged.
+    for ghost in level.ghosts:
+        assert ghost.state == GhostState.ENRAGED
+
+    # Change all ghosts to their frightened state.
+    level.frighten_ghosts()
+
+    # Verify that all ghosts change state after calling frighten_ghosts.
+    for ghost in level.ghosts:
+        assert ghost.state == GhostState.FRIGHTENED
