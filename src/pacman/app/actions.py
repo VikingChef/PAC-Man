@@ -4,6 +4,7 @@
 
 from enum import Enum, auto
 from typing import Final
+
 import pygame as pg
 import time
 import os
@@ -179,9 +180,13 @@ class MainMenu:
             else:
                 button.render_button(screen)
 
-    def handle_event(self, event) -> MainMenuAction:
+    def handle_event(
+        self,
+        event: pg.event.Event,
+    ) -> MainMenuAction | None:
         if event.type == pg.MOUSEBUTTONDOWN:
             mx, my = event.pos
+
             if self.start_game.hovering(mx, my):
                 return MainMenuAction.START_GAME
             elif self.instr.hovering(mx, my):
@@ -191,9 +196,11 @@ class MainMenu:
             elif self.exit.hovering(mx, my):
                 return MainMenuAction.EXIT
 
+        return None
+
 
 class CharacterSelect:
-    def __init__(self, screen: pg.Surface):
+    def __init__(self, screen: pg.Surface) -> None:
         self.queen_1: Button = Button(
             'queen-1.png',
             'queen-1-hover.png'
@@ -269,14 +276,14 @@ class CharacterSelect:
             'go-back-symbol-hover.png',
             pos=(0, screen.get_height() - 140),
             hover_offset=(-20, 50)
-            )
+        )
         self.back_to_main: pg.Surface = load_trans_image(
             f'{IMAGES}/back-to-main-menu.png'
         )
         self.back_to_main_pos: tuple[int, int] = (
             10,
             screen.get_height() - 40
-            )
+        )
 
     def render_char_select(
         self,
@@ -301,15 +308,21 @@ class CharacterSelect:
         screen.blit(self.ms_pellet, self.ms_pellet_pos)
         screen.blit(self.back_to_main, self.back_to_main_pos)
 
-    def handle_event(self, event) -> CharSelectAction:
+    def handle_event(
+        self,
+        event: pg.event.Event,
+    ) -> CharSelectAction | None:
         if event.type == pg.MOUSEBUTTONDOWN:
             mx, my = event.pos
+
             if self.queen_1.hovering(mx, my):
                 return CharSelectAction.WAKA_WAKA_WANDA
             elif self.queen_2.hovering(mx, my):
                 return CharSelectAction.MS_POWER_PELLET
             elif self.back_button.hovering(mx, my):
                 return CharSelectAction.MAIN_MENU
+
+        return None
 
 
 class LoadingBar:

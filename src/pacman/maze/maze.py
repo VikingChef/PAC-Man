@@ -1,7 +1,7 @@
 """Represent an internal Pac-Man maze and its movement rules."""
 
-from src.pacman.maze.direction import Direction
-from src.pacman.maze.wall import Wall
+from pacman.maze.direction import Direction
+from pacman.maze.wall import Wall
 
 
 DIRECTION_TO_WALL = {

@@ -1,6 +1,8 @@
 """Tests for the Pac-Man application orchestrator."""
 
-from pacman.app.actions import MainMenuAction
+import pytest
+
+from pacman.app.actions import CharSelectAction, MainMenuAction
 from pacman.app.application import AppState, PacManApp
 from pacman.config.models import GameConfig, LevelConfig
 from pacman.maze.direction import Direction
@@ -84,8 +86,8 @@ def test_stop_ends_application_loop() -> None:
     assert app.running is False
 
 
-def test_start_game_action_starts_new_game() -> None:
-    """Check that Start Game creates a new run."""
+def test_start_game_action_opens_character_select() -> None:
+    """Check that Start Game opens character selection."""
 
     # Create the application before a game has started.
     app = PacManApp(_test_config())
@@ -93,8 +95,34 @@ def test_start_game_action_starts_new_game() -> None:
     # Handle the Start Game choice from the main menu.
     app._handle_main_menu_action(MainMenuAction.START_GAME)
 
-    # Confirm a new game was created and gameplay began.
+    # Character selection should happen before the game itself is created.
+    assert app.game_state is None
+    assert app.state == AppState.CHAR_SELECT
+
+
+@pytest.mark.parametrize(
+    "queen",
+    [
+        CharSelectAction.WAKA_WAKA_WANDA,
+        CharSelectAction.MS_POWER_PELLET,
+    ],
+)
+def test_character_select_action_starts_new_game(
+    queen: CharSelectAction,
+) -> None:
+    """Check that choosing either character creates a new run."""
+
+    # Create the application and enter character selection.
+    app = PacManApp(_test_config())
+    app._handle_main_menu_action(MainMenuAction.START_GAME)
+
+    # Choose one of the playable characters.
+    app._handle_char_select_action(queen)
+
+    # Choosing either character should create the run and begin gameplay.
+    assert app.queen_chosen == queen
     assert app.game_state is not None
+    assert app.active_level is not None
     assert app.state == AppState.PLAYING
 
 

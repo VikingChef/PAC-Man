@@ -2,8 +2,8 @@
 
 import sys
 from pathlib import Path
-from src.pacman.app.application import PacManApp
-from src.pacman.config.loader import load_config, GameConfig
+from pacman.app.application import PacManApp
+from pacman.config.loader import load_config, GameConfig
 
 
 def main() -> None:
