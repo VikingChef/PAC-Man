@@ -5,15 +5,6 @@ import time
 from collections.abc import Iterator
 from enum import Enum, auto
 from random import randint
-
-from src.pacman.app.actions import MainMenuAction, MainMenu, CharacterSelect
-from src.pacman.app.actions import LoadingBar, center, CharSelectAction
-from src.pacman.config.models import GameConfig
-from src.pacman.game.state import GameState
-from src.pacman.game.level_factory import create_level
-from src.pacman.game.level import Level
-from src.pacman.game.pacgum import PacgumType
-from src.pacman.maze.direction import Direction
 from types import TracebackType
 
 import pygame as pg
@@ -82,9 +73,6 @@ class PacManApp:
         self.loading: LoadingBar = LoadingBar(self.screen)
 
         self.queen_chosen: CharSelectAction | None = None
-
-        # Create the active level only when a new game starts.
-        self.active_level: Level | None = None
 
     @property
     def bg_pos(self) -> tuple[int, int]:
