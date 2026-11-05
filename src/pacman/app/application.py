@@ -93,12 +93,41 @@ class PacManApp:
     def run(self) -> None:
         """Run the Pac-Man application."""
 
+        # Track real elapsed time between frames.
+        previous_time: float = time.monotonic()
+        accumulated_time: float = 0.0
+
         # Keep one central loop and route each cycle by application state.
         while self.running:
             iter_start: float = time.time()
 
+            # Measure elapsed time using a monotonic clock.
+            current_time: float = time.monotonic()
+            elapsed_time = current_time - previous_time
+            previous_time = current_time
+
+            # Remember the state before processing new input.
+            previous_state = self.state
+
             self._load_bg()
             self._get_events()
+
+            # Advance timers only during uninterrupted active gameplay.
+            if (
+                previous_state == AppState.PLAYING
+                and self.state == AppState.PLAYING
+                and self.active_level is not None
+                and self.game_state is not None
+            ):
+                accumulated_time += elapsed_time
+
+                # Process every full second, preserving partial seconds.
+                while accumulated_time >= 1.0:
+                    self.active_level.tick(1)
+                    accumulated_time -= 1.0
+            else:
+                # Discard elapsed time outside active gameplay.
+                accumulated_time = 0.0
 
             if self.state == AppState.MAIN_MENU:
                 self._run_main_menu()
@@ -121,6 +150,7 @@ class PacManApp:
 
             pg.display.flip()
 
+            # Limit the application to approximately 60 FPS.
             iter_end: float = time.time()
             time.sleep(
                 max(

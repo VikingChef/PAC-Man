@@ -8,6 +8,8 @@ from pacman.config.models import GameConfig, LevelConfig
 from pacman.maze.direction import Direction
 from pacman.game.ghost import GhostState
 from pacman.game.pacgum import PacgumType
+from types import SimpleNamespace
+from pacman.app import application as application_module
 
 
 def _test_config() -> GameConfig:
@@ -282,3 +284,49 @@ def test_frightened_ghosts_after_super_pacgum() -> None:
     # Verify that all ghosts have changed state to frightened.
     for ghost in app.active_level.ghosts:
         assert ghost.state == GhostState.FRIGHTENED
+
+
+def test_game_loop_advances_timers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify that gameplay timers advance with real elapsed time."""
+
+    app = PacManApp(_test_config())
+    app.start_new_game()
+
+    assert app.active_level is not None
+    level = app.active_level
+    level.frighten_ghosts()
+
+    # Simulate four frames spanning 2.2 seconds.
+    timestamps = iter([0.0, 0.4, 1.1, 1.6, 2.2])
+
+    fake_time = SimpleNamespace(
+        monotonic=lambda: next(timestamps),
+        time=lambda: 0.0,
+        sleep=lambda seconds: None,
+    )
+
+    monkeypatch.setattr(application_module, "time", fake_time)
+    monkeypatch.setattr(app, "_load_bg", lambda: None)
+    monkeypatch.setattr(app, "_get_events", lambda: None)
+    monkeypatch.setattr(application_module.pg.display, "flip", lambda: None)
+
+    frames = 0
+
+    def stop_after_four_frames() -> None:
+        """Stop the application after four gameplay frames."""
+        nonlocal frames
+        frames += 1
+
+        if frames == 4:
+            app.stop()
+
+    monkeypatch.setattr(app, "_run_game", stop_after_four_frames)
+
+    # Run the application with our simulated clock.
+    app.run()
+
+    # Only two complete seconds should have elapsed.
+    assert level.remaining_time == 88
+    assert level.frightened_timer == 4
