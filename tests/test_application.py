@@ -6,6 +6,8 @@ from pacman.app.actions import CharSelectAction, MainMenuAction
 from pacman.app.application import AppState, PacManApp
 from pacman.config.models import GameConfig, LevelConfig
 from pacman.maze.direction import Direction
+from pacman.game.ghost import GhostState
+from pacman.game.pacgum import PacgumType
 
 
 def _test_config() -> GameConfig:
@@ -240,3 +242,43 @@ def test_advance_level_reaches_victory_after_final_level() -> None:
 
     # Final-level progression should enter the victory state.
     assert app.state == AppState.VICTORY
+
+
+def test_frightened_ghosts_after_super_pacgum() -> None:
+    """Verify that ghosts are frightened after super-pacgum is obtained."""
+
+    # Start a game so the application has an active level and player.
+    app = PacManApp(_test_config())
+    app.start_new_game()
+
+    # Keep the test explicit about the state required for gameplay.
+    assert app.active_level is not None
+
+    player = app.active_level.player
+    maze = app.active_level.maze
+
+    # Find a direction the player can move from the starting position.
+    direction = next(
+        direction
+        for direction in Direction
+        if maze.can_move(player.position, direction)
+    )
+
+    # Get the horizontal and vertical movement offsets.
+    dx, dy = direction.value
+
+    # Calculate the cell directly ahead of the player.
+    x, y = player.position
+    destination = (x + dx, y + dy)
+
+    # Place a super-pacgum at the player's next position.
+    app.active_level.pacgums[destination] = PacgumType.SUPER_PACGUM
+
+    # Move the player onto the super-pacgum.
+    moved = app.move_player(direction)
+
+    assert moved is True
+
+    # Verify that all ghosts have changed state to frightened.
+    for ghost in app.active_level.ghosts:
+        assert ghost.state == GhostState.FRIGHTENED

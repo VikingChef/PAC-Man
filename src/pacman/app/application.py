@@ -245,6 +245,7 @@ class PacManApp:
 
         elif collected_pacgum == PacgumType.SUPER_PACGUM:
             self.game_state.score += self.config.points_per_super_pacgum
+            self.active_level.frighten_ghosts()
 
         # Advance once collecting the final pacgum completes the level.
         if self.active_level.is_complete:

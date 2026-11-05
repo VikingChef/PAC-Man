@@ -27,6 +27,8 @@ class Level:
         self.player = player
         self.ghosts = ghosts
         self.pacgums = pacgums
+        # Ghosts begin enraged, so no frightened time is active.
+        self.frightened_timer = 0
 
     def collect_pacgum(
         self,
@@ -37,21 +39,36 @@ class Level:
         return self.pacgums.pop(position, None)
 
     def frighten_ghosts(self) -> None:
-        """Set all ghosts in the level to the frightened state."""
+        """Set all ghosts to frightened and restart the frightened timer."""
+
+        self.frightened_timer = 6
 
         for ghost in self.ghosts:
             ghost.state = GhostState.FRIGHTENED
 
     def tick(
         self,
-        elapsed_seconds: int
+        elapsed_seconds: int,
     ) -> None:
-        """Reduce the level timer by the elapsed whole seconds."""
+        """Reduce the level and frightened timers by elapsed seconds."""
 
         self.remaining_time = max(
             0,
             self.remaining_time - elapsed_seconds,
         )
+
+        # Remember whether the frightened timer was running.
+        was_frightened = self.frightened_timer > 0
+
+        self.frightened_timer = max(
+            0,
+            self.frightened_timer - elapsed_seconds,
+        )
+
+        # Restore normal ghost behaviour when frightened time expires.
+        if was_frightened and self.frightened_timer == 0:
+            for ghost in self.ghosts:
+                ghost.state = GhostState.ENRAGED
 
     @property
     def is_time_up(self) -> bool:
