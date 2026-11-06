@@ -1,5 +1,6 @@
 CONFIG ?= config.json
 export PYGAME_HIDE_SUPPORT_PROMPT := 1
+export PYTHONPATH := src
 
 install:
 	uv sync
