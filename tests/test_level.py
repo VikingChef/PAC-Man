@@ -9,6 +9,7 @@ from pacman.game.player import Player
 from pacman.maze.direction import Direction
 from pacman.maze.maze import Maze
 from pacman.maze.wall import Wall
+from pacman.game.ghost import Ghost, GhostIdentity
 
 
 def test_level_initializes_state() -> None:
@@ -417,3 +418,287 @@ def test_ghosts_return_to_enraged_when_timer_expires() -> None:
     # Verify that all ghosts revert to enraged state.
     for ghost in level.ghosts:
         assert ghost.state == GhostState.ENRAGED
+
+
+def test_enraged_ghost_moves_towards_player() -> None:
+    """Verify that an enraged ghost moves closer to Pac-Man."""
+
+    # Build an open maze with Pac-Man in the centre.
+    config = LevelConfig(number=1, width=21, height=21)
+    maze = Maze([
+        [Wall.NONE for _ in range(21)]
+        for _ in range(21)
+    ])
+    player = Player(
+        spawn_position=(10, 10),
+        spawn_direction=Direction.EAST,
+    )
+    ghosts = create_ghosts(maze)
+
+    level = Level(
+        config=config,
+        maze=maze,
+        player=player,
+        ghosts=ghosts,
+        time_limit=90,
+        pacgums={},
+    )
+
+    # Measure the first ghost's distance before movement.
+    ghost = level.ghosts[0]
+    old_distance = (
+        abs(ghost.position[0] - player.position[0])
+        + abs(ghost.position[1] - player.position[1])
+    )
+
+    level.move_ghosts()
+
+    # The ghost should now be exactly one cell closer.
+    new_distance = (
+        abs(ghost.position[0] - player.position[0])
+        + abs(ghost.position[1] - player.position[1])
+    )
+
+    assert new_distance == old_distance - 1
+    assert player.position == (10, 10)
+
+
+def test_frightened_ghost_moves_away_from_player() -> None:
+    """Verify that a frightened ghost moves farther from Pac-Man."""
+
+    # Build an open maze with Pac-Man in the centre.
+    config = LevelConfig(number=1, width=21, height=21)
+    maze = Maze([
+        [Wall.NONE for _ in range(21)]
+        for _ in range(21)
+    ])
+    player = Player(
+        spawn_position=(10, 10),
+        spawn_direction=Direction.EAST,
+    )
+    ghosts = create_ghosts(maze)
+
+    level = Level(
+        config=config,
+        maze=maze,
+        player=player,
+        ghosts=ghosts,
+        time_limit=90,
+        pacgums={},
+    )
+
+    # Activate frightened behaviour before moving the ghosts.
+    level.frighten_ghosts()
+
+    ghost = level.ghosts[0]
+    old_distance = (
+        abs(ghost.position[0] - player.position[0])
+        + abs(ghost.position[1] - player.position[1])
+    )
+
+    level.move_ghosts()
+
+    # The frightened ghost should move exactly one cell farther away.
+    new_distance = (
+        abs(ghost.position[0] - player.position[0])
+        + abs(ghost.position[1] - player.position[1])
+    )
+
+    assert new_distance == old_distance + 1
+    assert ghost.state == GhostState.FRIGHTENED
+    assert player.position == (10, 10)
+
+
+def test_all_ghosts_move_one_legal_cell() -> None:
+    """Verify that every ghost makes one legal movement."""
+
+    # Create a level with four ghosts in an open maze.
+    config = LevelConfig(number=1, width=21, height=21)
+    maze = Maze([
+        [Wall.NONE for _ in range(21)]
+        for _ in range(21)
+    ])
+    player = Player(
+        spawn_position=(10, 10),
+        spawn_direction=Direction.EAST,
+    )
+    ghosts = create_ghosts(maze)
+
+    level = Level(
+        config=config,
+        maze=maze,
+        player=player,
+        ghosts=ghosts,
+        time_limit=90,
+        pacgums={},
+    )
+
+    # Remember where everyone started.
+    starting_positions = [ghost.position for ghost in ghosts]
+    player_position = player.position
+
+    level.move_ghosts()
+
+    # Each ghost must move exactly one legal cell.
+    assert len(ghosts) == 4
+
+    for ghost, starting_position in zip(ghosts, starting_positions):
+        dx = ghost.position[0] - starting_position[0]
+        dy = ghost.position[1] - starting_position[1]
+
+        assert (dx, dy) in [direction.value for direction in Direction]
+        assert maze.can_move(starting_position, ghost.direction)
+
+    # Ghost movement must not change Pac-Man's position.
+    assert player.position == player_position
+
+
+def test_ghost_collision_detected() -> None:
+    """Verify that a ghost sharing the player's position is detected."""
+
+    # Create a small open maze.
+    config = LevelConfig(number=1, width=3, height=3)
+    maze = Maze([
+        [Wall.NONE for _ in range(3)]
+        for _ in range(3)
+    ])
+
+    player = Player(
+        spawn_position=(1, 1),
+        spawn_direction=Direction.EAST,
+    )
+
+    ghost = Ghost(
+        spawn_position=(1, 1),
+        identity=GhostIdentity.EGO_MACHINE,
+        spawn_direction=Direction.WEST,
+    )
+
+    level = Level(
+        config=config,
+        maze=maze,
+        player=player,
+        ghosts=[ghost],
+        time_limit=90,
+        pacgums={},
+    )
+
+    assert level.check_ghost_collision() == [ghost]
+
+
+def test_ghost_collision_is_none() -> None:
+    """Verify that a ghost does not trigger fake collision."""
+
+    # Create a small open maze.
+    config = LevelConfig(number=1, width=3, height=3)
+    maze = Maze([
+        [Wall.NONE for _ in range(3)]
+        for _ in range(3)
+    ])
+
+    player = Player(
+        spawn_position=(1, 1),
+        spawn_direction=Direction.EAST,
+    )
+
+    ghost = Ghost(
+        spawn_position=(0, 0),
+        identity=GhostIdentity.EGO_MACHINE,
+        spawn_direction=Direction.WEST,
+    )
+
+    level = Level(
+        config=config,
+        maze=maze,
+        player=player,
+        ghosts=[ghost],
+        time_limit=90,
+        pacgums={},
+    )
+
+    assert level.check_ghost_collision() == []
+
+
+def test_multiple_ghost_collisions() -> None:
+    """Verify that all ghosts sharing the player's cell are detected."""
+
+    # Create a small open maze.
+    config = LevelConfig(number=1, width=3, height=3)
+    maze = Maze([
+        [Wall.NONE for _ in range(3)]
+        for _ in range(3)
+    ])
+
+    player = Player(
+        spawn_position=(1, 1),
+        spawn_direction=Direction.EAST,
+    )
+
+    # Place two ghosts on Pac-Man and one elsewhere.
+    ghosts = [
+        Ghost((1, 1), GhostIdentity.EGO_MACHINE, Direction.WEST),
+        Ghost((1, 1), GhostIdentity.TERF_HAG, Direction.NORTH),
+        Ghost((0, 0), GhostIdentity.ORANGE_PUNCHLINE, Direction.EAST),
+    ]
+
+    level = Level(
+        config=config,
+        maze=maze,
+        player=player,
+        ghosts=ghosts,
+        time_limit=90,
+        pacgums={},
+    )
+
+    # Only the two ghosts sharing Pac-Man's cell should be returned.
+    assert level.check_ghost_collision() == ghosts[:2]
+
+
+def test_reset_positions_preserves_level_progress() -> None:
+    """Verify that resetting positions preserves level progress."""
+
+    # Create a level with four ghosts and a pacgum.
+    config = LevelConfig(number=1, width=21, height=21)
+    maze = Maze([
+        [Wall.NONE for _ in range(21)]
+        for _ in range(21)
+    ])
+
+    player = Player(
+        spawn_position=(10, 10),
+        spawn_direction=Direction.EAST,
+    )
+    ghosts = create_ghosts(maze)
+
+    level = Level(
+        config=config,
+        maze=maze,
+        player=player,
+        ghosts=ghosts,
+        time_limit=90,
+        pacgums={(11, 10): PacgumType.PACGUM},
+    )
+
+    # Simulate movement, collecting a pacgum, and time passing.
+    player.move(maze, Direction.EAST)
+    level.collect_pacgum(player.position)
+
+    level.move_ghosts()
+    level.frighten_ghosts()
+    level.tick(3)
+
+    # Reset characters without restarting the level.
+    level.reset_positions()
+
+    # Everyone should return to their original spawn positions.
+    assert player.position == player.spawn_position
+
+    for ghost in ghosts:
+        assert ghost.position == ghost.spawn_position
+        assert ghost.direction == ghost.spawn_direction
+        assert ghost.state == GhostState.ENRAGED
+
+    # Frightened mode ends, but level progress remains unchanged.
+    assert level.frightened_timer == 0
+    assert level.remaining_time == 87
+    assert level.pacgums == {}

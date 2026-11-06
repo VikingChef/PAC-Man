@@ -18,6 +18,7 @@ from pacman.game.level_factory import create_level
 from pacman.game.pacgum import PacgumType
 from pacman.game.state import GameState
 from pacman.maze.direction import Direction
+from pacman.game.ghost import GhostState
 
 
 class AppState(Enum):
@@ -97,6 +98,7 @@ class PacManApp:
         # Track real elapsed time between frames.
         previous_time: float = time.monotonic()
         accumulated_time: float = 0.0
+        ghost_accumulated_time: float = 0.0
         previous_level: Level | None = self.active_level
 
         # Keep one central loop and route each cycle by application state.
@@ -119,6 +121,7 @@ class PacManApp:
 
             if level_changed:
                 accumulated_time = 0.0
+                ghost_accumulated_time = 0.0
                 previous_level = self.active_level
 
             # Advance timers only during uninterrupted active gameplay.
@@ -136,6 +139,19 @@ class PacManApp:
                     self.active_level.tick(1)
                     accumulated_time -= 1.0
 
+                # Accumulate time independently for ghost movement.
+                ghost_accumulated_time += elapsed_time
+
+                # Convert the configured movement interval to seconds.
+                ghost_interval = (
+                    self.active_level.config.ghost_move_interval_ms / 1000
+                )
+
+                # Move ghosts once for each completed movement interval.
+                while ghost_accumulated_time >= ghost_interval:
+                    self.active_level.move_ghosts()
+                    ghost_accumulated_time -= ghost_interval
+
             elif (
                 self.state == AppState.PAUSED
                 or (
@@ -147,8 +163,9 @@ class PacManApp:
                 pass
 
             else:
-                # Reset accumulated time when leaving gameplay.
+                # Reset both timers when leaving gameplay.
                 accumulated_time = 0.0
+                ghost_accumulated_time = 0.0
 
             if self.state == AppState.MAIN_MENU:
                 self._run_main_menu()
@@ -304,6 +321,30 @@ class PacManApp:
 
         # Preserve the movement contract: a successful move returns True.
         return True
+
+    def resolve_ghost_collisions(self) -> None:
+        """Apply the consequences of ghosts colliding with the player."""
+
+        # Collision handling requires an active level and game state.
+        if self.active_level is None or self.game_state is None:
+            return
+
+        # Nothing to resolve if no ghost shares the player's position.
+        colliding_ghosts = self.active_level.check_ghost_collision()
+
+        if not colliding_ghosts:
+            return
+
+        # An enraged ghost takes priority over frightened ghosts.
+        if any(ghost.state == GhostState.ENRAGED for ghost in colliding_ghosts):
+            self.game_state.lives -= 1
+
+            if self.game_state.lives == 0:
+                self.change_state(AppState.GAME_OVER)
+            else:
+                self.active_level.reset_positions()
+
+            return
 
     def _advance_level(
         self,

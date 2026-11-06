@@ -5,6 +5,10 @@ from pacman.game.pacgum import PacgumType
 from pacman.game.player import Player
 from pacman.game.ghost import Ghost, GhostState
 from pacman.maze.maze import Maze
+from pacman.game.ghost_ai import (
+    calculate_distances,
+    choose_ghost_direction,
+)
 
 
 class Level:
@@ -45,6 +49,48 @@ class Level:
 
         for ghost in self.ghosts:
             ghost.state = GhostState.FRIGHTENED
+
+    def move_ghosts(self) -> None:
+        """Move each ghost one cell according to its AI behaviour."""
+
+        # Calculate the shortest routes from Pac-Man's position.
+        distances = calculate_distances(
+            self.maze,
+            self.player.position,
+        )
+
+        # Choose and perform one movement for each ghost.
+        for ghost in self.ghosts:
+            direction = choose_ghost_direction(
+                ghost,
+                self.maze,
+                distances,
+            )
+
+            if direction is not None:
+                ghost.move(self.maze, direction)
+
+    def check_ghost_collision(self) -> list[Ghost]:
+        """Return all ghosts occupying the player's position."""
+
+        # Collect every ghost sharing the player's position.
+        colliding_ghosts: list[Ghost] = []
+
+        for ghost in self.ghosts:
+            if ghost.position == self.player.position:
+                colliding_ghosts.append(ghost)
+
+        return colliding_ghosts
+
+    def reset_positions(self) -> None:
+        """Return the player and all ghosts to their spawn positions."""
+
+        self.player.reset()
+
+        for ghost in self.ghosts:
+            ghost.reset()
+
+        self.frightened_timer = 0
 
     def tick(
         self,

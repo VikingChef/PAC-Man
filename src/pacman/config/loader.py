@@ -11,6 +11,19 @@ logger = logging.getLogger(__name__)
 DEFAULT_LEVEL_COUNT = 10
 DEFAULT_LEVEL_WIDTH = 21
 DEFAULT_LEVEL_HEIGHT = 21
+DEFAULT_GHOST_INTERVAL_MS = 400
+GHOST_INTERVAL_DECREASE_MS = 25
+MIN_GHOST_INTERVAL_MS = 200
+
+
+def _default_ghost_interval(level_number: int) -> int:
+    """Calculate the default ghost movement interval for a level."""
+
+    return max(
+        MIN_GHOST_INTERVAL_MS,
+        DEFAULT_GHOST_INTERVAL_MS
+        - (level_number - 1) * GHOST_INTERVAL_DECREASE_MS,
+    )
 
 
 def _default_levels() -> list[LevelConfig]:
@@ -21,6 +34,7 @@ def _default_levels() -> list[LevelConfig]:
             number=number,
             width=DEFAULT_LEVEL_WIDTH,
             height=DEFAULT_LEVEL_HEIGHT,
+            ghost_move_interval_ms=_default_ghost_interval(number),
         )
         for number in range(1, DEFAULT_LEVEL_COUNT + 1)
     ]
@@ -174,6 +188,7 @@ def load_config(config_path: Path) -> GameConfig:
                         number=index,
                         width=DEFAULT_LEVEL_WIDTH,
                         height=DEFAULT_LEVEL_HEIGHT,
+                        ghost_move_interval_ms=_default_ghost_interval(index),
                     )
                 )
                 continue
@@ -213,12 +228,30 @@ def load_config(config_path: Path) -> GameConfig:
                 )
                 height = DEFAULT_LEVEL_HEIGHT
 
+            # Read the configured speed or calculate the level default.
+            ghost_move_interval_ms = level_data.get(
+                "ghost_move_interval_ms",
+                _default_ghost_interval(number),
+            )
+
+            # Reject invalid speeds and values below our minimum interval.
+            if (
+                type(ghost_move_interval_ms) is not int
+                or ghost_move_interval_ms < MIN_GHOST_INTERVAL_MS
+            ):
+                logger.warning(
+                    f"Invalid ghost movement interval for level {index}. "
+                    "Using level default."
+                )
+                ghost_move_interval_ms = _default_ghost_interval(number)
+
             # Build a LevelConfig from the cleaned values.
             levels.append(
                 LevelConfig(
                     number=number,
                     width=width,
                     height=height,
+                    ghost_move_interval_ms=ghost_move_interval_ms,
                 )
             )
 
@@ -238,6 +271,7 @@ def load_config(config_path: Path) -> GameConfig:
                     number=number,
                     width=DEFAULT_LEVEL_WIDTH,
                     height=DEFAULT_LEVEL_HEIGHT,
+                    ghost_move_interval_ms=_default_ghost_interval(number),
                 )
             )
 
