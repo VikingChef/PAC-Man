@@ -82,6 +82,8 @@ class PacManApp:
         self.block_pos: list[list[tuple[int, int]]] = []
 
         self.waka: pg.Surface = load_trans_image(f'{IMAGES}/waka-sprite.png')
+        self.ms_pellet: pg.Surface = load_trans_image(
+            f'{IMAGES}/ms-pellet-sprite.png')
 
     @property
     def bg_pos(self) -> tuple[int, int]:
@@ -271,13 +273,13 @@ class PacManApp:
                 x, y = self.active_level.player.position
                 if event.type == pg.KEYDOWN:
                     if event.key == pg.K_UP:
-                        self.active_level.player.position = x, y - 1
+                        self.active_level.player.position = x, y - 0.5
                     elif event.key == pg.K_DOWN:
-                        self.active_level.player.position = x, y - 1
+                        self.active_level.player.position = x, y - 0.5
                     elif event.key == pg.K_LEFT:
-                        self.active_level.player.position = x - 1, y
+                        self.active_level.player.position = x - 0.5, y
                     elif event.key == pg.K_RIGHT:
-                        self.active_level.player.position = x + 1, y
+                        self.active_level.player.position = x + 0.5, y
 
     def start_new_game(self) -> None:
         """Create the state for a new Pac-Man game."""
@@ -474,11 +476,13 @@ class PacManApp:
                 if col == 'wall':
                     self.screen.blit(self.block, (self.block_pos[i][j]))
         player_x, player_y = (
-            self.active_level.player.position[0] * 2 + 1,
-            self.active_level.player.position[1] * 2 + 1
+            int(self.active_level.player.position[0] * 2 + 1),
+            int(self.active_level.player.position[1] * 2 + 1)
             )
-        self.screen.blit(self.waka, self.block_pos[player_y][player_x])
-        
+        if self.queen_chosen == CharSelectAction.WAKA_WAKA_WANDA:
+            self.screen.blit(self.waka, self.block_pos[player_y][player_x])
+        elif self.queen_chosen == CharSelectAction.MS_POWER_PELLET:
+            self.screen.blit(self.ms_pellet, self.block_pos[player_y][player_x])
 
     def _run_pause_menu(self) -> None:
         """Handle the paused application state."""
