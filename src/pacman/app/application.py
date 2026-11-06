@@ -335,13 +335,17 @@ class PacManApp:
             elif self.state == AppState.PLAYING:
                 x, y = self.active_level.player.position
                 if event.type == pg.KEYDOWN:
-                    if event.key == pg.K_UP:
+                    if (event.key == pg.K_UP
+                       and self._can_move(Direction.NORTH)):
                         self.active_level.player.position = x, y - 0.5
-                    elif event.key == pg.K_DOWN:
-                        self.active_level.player.position = x, y - 0.5
-                    elif event.key == pg.K_LEFT:
+                    elif (event.key == pg.K_DOWN
+                          and self._can_move(Direction.SOUTH)):
+                        self.active_level.player.position = x, y + 0.5
+                    elif (event.key == pg.K_LEFT
+                          and self._can_move(Direction.WEST)):
                         self.active_level.player.position = x - 0.5, y
-                    elif event.key == pg.K_RIGHT:
+                    elif (event.key == pg.K_RIGHT
+                          and self._can_move(Direction.EAST)):
                         self.active_level.player.position = x + 0.5, y
 
     def start_new_game(self) -> None:
@@ -546,7 +550,22 @@ class PacManApp:
         if self.queen_chosen == CharSelectAction.WAKA_WAKA_WANDA:
             self.screen.blit(self.waka, self.block_pos[player_y][player_x])
         elif self.queen_chosen == CharSelectAction.MS_POWER_PELLET:
-            self.screen.blit(self.ms_pellet, self.block_pos[player_y][player_x])
+            self.screen.blit(self.ms_pellet,
+                             self.block_pos[player_y][player_x])
+
+    def _can_move(self, direction: Direction) -> bool:
+        x, y = (
+            int(self.active_level.player.position[0] * 2 + 1),
+            int(self.active_level.player.position[1] * 2 + 1)
+            )
+        if direction == Direction.NORTH:
+            return self.active_level_layout[y - 1][x] == 'path'
+        elif direction == Direction.SOUTH:
+            return self.active_level_layout[y + 1][x] == 'path'
+        elif direction == Direction.WEST:
+            return self.active_level_layout[y][x - 1] == 'path'
+        elif direction == Direction.EAST:
+            return self.active_level_layout[y][x + 1] == 'path'
 
     def _run_pause_menu(self) -> None:
         """Handle the paused application state."""
