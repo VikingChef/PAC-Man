@@ -1,6 +1,8 @@
 """Create active Pac-Man levels from configuration and maze generation."""
 
 from random import Random
+import contextlib
+import io
 
 from mazegenerator.mazegenerator import MazeGenerator
 
@@ -22,11 +24,12 @@ def create_level(
     """Create an active Level from configuration and maze settings."""
 
     # Generate the external maze using this level's configured dimensions.
-    generator = MazeGenerator(
-        size=(config.width, config.height),
-        perfect=False,
-        seed=seed,
-    )
+    with contextlib.redirect_stdout(io.StringIO()):
+        generator = MazeGenerator(
+            size=(config.width, config.height),
+            perfect=False,
+            seed=seed
+        )
 
     # Cross the adapter boundary into our internal maze representation.
     maze = adapt_maze(generator)

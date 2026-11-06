@@ -77,7 +77,11 @@ class PacManApp:
 
         # Create the active level only when a new game starts.
         self.active_level: Level | None = None
+        self.active_level_layout: list[list[str]] = []
         self.block: pg.Surface = load_trans_image(f'{IMAGES}/level-block.gif')
+        self.block_pos: list[list[tuple[int, int]]] = []
+
+        self.waka: pg.Surface = load_trans_image(f'{IMAGES}/waka-sprite.png')
 
     @property
     def bg_pos(self) -> tuple[int, int]:
@@ -95,8 +99,7 @@ class PacManApp:
 
         return (bg_x, bg_y)
 
-    @property
-    def active_level_layout(self) -> list[list[str]]:
+    def _get_active_level_layout(self) -> list[list[str]]:
         width: int = self.active_level.maze.width
         height: int = self.active_level.maze.height
         maze_lst: list = [self.interchange_list_element(
@@ -110,7 +113,28 @@ class PacManApp:
             ['wall'],
             height
             )
-        output = self.create_paths_in_rows(output, width)
+        output = self.create_paths(output, width)
+        return output
+
+    def _get_block_pos(self) -> list[list[tuple[int, int]]]:
+        output: list[list[tuple[int, int]]] = []
+        if self.active_level is not None:
+            for i, row in enumerate(self.active_level_layout):
+                output.append([])
+                for j, col in enumerate(row):
+                    x: int = int(
+                            (self.screen.get_width() -
+                             self.block.get_width() *
+                             len(self.active_level_layout[0])) / 2
+                            + j * self.block.get_width()
+                            )
+                    y: int = int(
+                            (self.screen.get_height() -
+                             self.block.get_height() *
+                             len(self.active_level_layout)) / 2
+                            + i * self.block.get_height()
+                            )
+                    output[i].append((x, y))
         return output
 
     def create_paths(self, output: list[list[str]],
@@ -243,6 +267,18 @@ class PacManApp:
                 if char_state is not None:
                     self._handle_char_select_action(char_state)
 
+            elif self.state == AppState.PLAYING:
+                x, y = self.active_level.player.position
+                if event.type == pg.KEYDOWN:
+                    if event.key == pg.K_UP:
+                        self.active_level.player.position = x, y - 1
+                    elif event.key == pg.K_DOWN:
+                        self.active_level.player.position = x, y - 1
+                    elif event.key == pg.K_LEFT:
+                        self.active_level.player.position = x - 1, y
+                    elif event.key == pg.K_RIGHT:
+                        self.active_level.player.position = x + 1, y
+
     def start_new_game(self) -> None:
         """Create the state for a new Pac-Man game."""
 
@@ -261,6 +297,8 @@ class PacManApp:
             time_limit=self.config.level_max_time,
             pacgum_count=self.config.pacgum,
         )
+        self.active_level_layout = self._get_active_level_layout()
+        self.block_pos = self._get_block_pos()
 
         # Move into gameplay once the new run and level are ready.
         self.change_state(AppState.PLAYING)
@@ -434,8 +472,13 @@ class PacManApp:
         for i, row in enumerate(self.active_level_layout):
             for j, col in enumerate(row):
                 if col == 'wall':
-                    self.screen.blit(self.block, (j * self.block.get_width(),
-                                                  i * self.block.get_height()))
+                    self.screen.blit(self.block, (self.block_pos[i][j]))
+        player_x, player_y = (
+            self.active_level.player.position[0] * 2 + 1,
+            self.active_level.player.position[1] * 2 + 1
+            )
+        self.screen.blit(self.waka, self.block_pos[player_y][player_x])
+        
 
     def _run_pause_menu(self) -> None:
         """Handle the paused application state."""
@@ -477,7 +520,7 @@ class PacManApp:
         """Dunder method for context managers.
 
         Returns:
-            Visualizer: Visualizer object
+            PacManApp: PacManApp object
         """
 
         return self
