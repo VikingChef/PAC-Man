@@ -356,3 +356,64 @@ def test_ghosts_become_frightened() -> None:
     # Verify that all ghosts change state after calling frighten_ghosts.
     for ghost in level.ghosts:
         assert ghost.state == GhostState.FRIGHTENED
+
+
+def test_ghosts_return_to_enraged_when_timer_expires() -> None:
+    """Verify that ghosts return to ENRAGED when frightened timer expires."""
+
+    # Build a 21x21 open maze for the four ghosts.
+    config = LevelConfig(
+        number=1,
+        width=21,
+        height=21,
+    )
+
+    maze = Maze([
+        [Wall.NONE for _ in range(21)]
+        for _ in range(21)
+    ])
+
+    player = Player(
+        spawn_position=(10, 10),
+        spawn_direction=Direction.EAST,
+    )
+
+    # Create the four ghosts at their designated spawn positions.
+    ghosts = create_ghosts(maze)
+
+    # Create the level with our player and four ghosts.
+    level = Level(
+        config=config,
+        maze=maze,
+        player=player,
+        ghosts=ghosts,
+        time_limit=90,
+        pacgums={},
+    )
+
+    # Verify that all ghosts initially start enraged.
+    for ghost in level.ghosts:
+        assert ghost.state == GhostState.ENRAGED
+
+    # Frighten all ghosts and start the six-second timer.
+    level.frighten_ghosts()
+
+    assert level.frightened_timer == 6
+
+    # Simulate two seconds passing.
+    level.tick(2)
+
+    assert level.frightened_timer == 4
+
+    # Verify that all ghosts retain frightened state.
+    for ghost in level.ghosts:
+        assert ghost.state == GhostState.FRIGHTENED
+
+    # Simulate all 6 seconds passing.
+    level.tick(4)
+
+    assert level.frightened_timer == 0
+
+    # Verify that all ghosts revert to enraged state.
+    for ghost in level.ghosts:
+        assert ghost.state == GhostState.ENRAGED
