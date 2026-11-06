@@ -1,3 +1,4 @@
+
 """Application orchestrator for Pac-Man."""
 
 import os
@@ -96,6 +97,7 @@ class PacManApp:
         # Track real elapsed time between frames.
         previous_time: float = time.monotonic()
         accumulated_time: float = 0.0
+        previous_level: Level | None = self.active_level
 
         # Keep one central loop and route each cycle by application state.
         while self.running:
@@ -112,21 +114,40 @@ class PacManApp:
             self._load_bg()
             self._get_events()
 
+            # Detect level change and lose the previous level's partial time.
+            level_changed = self.active_level is not previous_level
+
+            if level_changed:
+                accumulated_time = 0.0
+                previous_level = self.active_level
+
             # Advance timers only during uninterrupted active gameplay.
             if (
                 previous_state == AppState.PLAYING
                 and self.state == AppState.PLAYING
+                and not level_changed
                 and self.active_level is not None
                 and self.game_state is not None
             ):
                 accumulated_time += elapsed_time
 
-                # Process every full second, preserving partial seconds.
+                # Process complete seconds while preserving fractions.
                 while accumulated_time >= 1.0:
                     self.active_level.tick(1)
                     accumulated_time -= 1.0
+
+            elif (
+                self.state == AppState.PAUSED
+                or (
+                    previous_state == AppState.PAUSED
+                    and self.state == AppState.PLAYING
+                )
+            ):
+                # Preserve partial seconds while paused or resuming.
+                pass
+
             else:
-                # Discard elapsed time outside active gameplay.
+                # Reset accumulated time when leaving gameplay.
                 accumulated_time = 0.0
 
             if self.state == AppState.MAIN_MENU:
@@ -164,6 +185,18 @@ class PacManApp:
 
         # Keep all application state transitions in one place.
         self.state = new_state
+
+    def pause_game(self) -> None:
+        """Pause the game during gameplay."""
+
+        if self.state == AppState.PLAYING:
+            self.change_state(AppState.PAUSED)
+
+    def resume_game(self) -> None:
+        """Resume gameplay when the application is paused."""
+
+        if self.state == AppState.PAUSED:
+            self.change_state(AppState.PLAYING)
 
     def change_queen(self, new_queen: CharSelectAction) -> None:
         self.queen_chosen = new_queen
@@ -230,11 +263,11 @@ class PacManApp:
         if frame is not None:
             self.bg.append(frame)
             self.loading.render_bar(
-                    min(
-                        4,
-                        len(self.bg) * 5 // self.bg_files
-                    )
+                min(
+                    4,
+                    len(self.bg) * 5 // self.bg_files
                 )
+            )
 
     def move_player(self, direction: Direction) -> bool:
         """Move the active player in the requested direction."""
