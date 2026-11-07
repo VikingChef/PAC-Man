@@ -1,18 +1,67 @@
+
 """Create active Pac-Man levels from configuration and maze generation."""
 
-from random import Random
 import contextlib
 import io
+from random import Random
 
 from mazegenerator.mazegenerator import MazeGenerator
 
 from pacman.config.models import LevelConfig
+from pacman.game.ghost_ai import calculate_distances
+from pacman.game.ghost_factory import create_ghosts
 from pacman.game.level import Level
 from pacman.game.pacgum_factory import pacgum_factory
 from pacman.game.player import Player
-from pacman.game.ghost_factory import create_ghosts
 from pacman.maze.adapter import adapt_maze
 from pacman.maze.direction import Direction
+from pacman.maze.maze import Maze
+
+
+def find_player_spawn(
+    maze: Maze,
+    pacgum_count: int,
+) -> tuple[int, int]:
+    """Find a central spawn in a sufficiently large reachable region."""
+
+    centre_x = maze.width // 2
+    centre_y = maze.height // 2
+
+    # One player position, four super-pacgums, and normal pacgums.
+    required_cells = pacgum_count + 5
+
+    candidates: list[tuple[int, int, int]] = []
+
+    for y in range(maze.height):
+        for x in range(maze.width):
+            position = (x, y)
+
+            if position in maze.reserved_positions:
+                continue
+
+            if not any(
+                maze.can_move(position, direction)
+                for direction in Direction
+            ):
+                continue
+
+            distance = abs(x - centre_x) + abs(y - centre_y)
+            candidates.append((distance, y, x))
+
+    candidates.sort()
+
+    # Prefer the nearest playable centre position, provided its
+    # connected region can accommodate the required collectibles.
+    for _, y, x in candidates:
+        position = (x, y)
+        reachable_positions = calculate_distances(maze, position)
+
+        if len(reachable_positions) >= required_cells:
+            return position
+
+    raise ValueError(
+        "Maze has no connected region large enough for this level"
+    )
 
 
 def create_level(
@@ -21,45 +70,51 @@ def create_level(
     time_limit: int,
     pacgum_count: int,
 ) -> Level:
-    """Create an active Level from configuration and maze settings."""
+    """Create a playable level from configuration and maze settings."""
 
-    # Generate the external maze using this level's configured dimensions.
+    # Generate the maze using the assigned external package.
     with contextlib.redirect_stdout(io.StringIO()):
         generator = MazeGenerator(
             size=(config.width, config.height),
             perfect=False,
-            seed=seed
+            seed=seed,
         )
 
-    # Cross the adapter boundary into our internal maze representation.
     maze = adapt_maze(generator)
 
-    # After the maze exists, create ghosts from that maze.
-    ghosts = create_ghosts(maze)
+    # Select the central playable region before placing game objects.
+    spawn_position = find_player_spawn(maze, pacgum_count)
 
-    # Place the player in the middle of the generated maze as required.
-    spawn_position = (
-        maze.width // 2,
-        maze.height // 2,
+    # Share one authoritative reachable region with both factories.
+    reachable_positions = set(
+        calculate_distances(maze, spawn_position)
     )
 
-    # Give the player a reproducible random starting direction.
+    # Place ghosts near their designated corners.
+    ghosts = create_ghosts(
+        maze=maze,
+        reachable_positions=reachable_positions,
+        player_spawn=spawn_position,
+    )
+
+    # Select the player's starting direction reproducibly.
     rng = Random(seed)
     spawn_direction = rng.choice(list(Direction))
+
     player = Player(
         spawn_position=spawn_position,
         spawn_direction=spawn_direction,
     )
 
-    # Create the initial pacgum state for this level.
+    # Place all required pacgums inside the same reachable region.
     pacgums = pacgum_factory(
         maze=maze,
         seed=seed,
         pacgum_count=pacgum_count,
         spawn_position=spawn_position,
+        reachable_positions=reachable_positions,
     )
 
-    # Return the complete active level and its initial mutable state.
     return Level(
         config=config,
         maze=maze,

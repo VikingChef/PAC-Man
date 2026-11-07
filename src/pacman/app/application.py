@@ -132,25 +132,35 @@ class PacManApp:
     def create_paths(
         self, output: list[list[str]], width: int
     ) -> list[list[str]]:
-        """Create paths.
-        Args:
-            output (list[list[str]]): the grid
-            width (int): width
-        Returns:
-            list[list[str]]: a grid transformed for paths
-        """
+        """Draw maze passages using the same rules as player movement."""
+
+        if self.active_level is None:
+            return output
+
+        maze = self.active_level.maze
+
         for i, row in enumerate(output):
             if i % 2 == 0:
-                visual_width = width * 2
-                output[i] = ['wall'] * (visual_width + 1)
+                output[i] = ['wall'] * (width * 2 + 1)
+
         for i, row in enumerate(output):
             for j, cell in enumerate(row):
-                if type(cell) is Wall:
-                    if Wall.EAST not in cell:
-                        output[i][j + 1] = 'path'
-                    if Wall.SOUTH not in cell:
-                        output[i + 1][j] = 'path'
-                    output[i][j] = 'path'
+                if type(cell) is not Wall:
+                    continue
+
+                position = ((j - 1) // 2, (i - 1) // 2)
+
+                if position in maze.reserved_positions:
+                    continue
+
+                output[i][j] = 'path'
+
+                if maze.can_move(position, Direction.EAST):
+                    output[i][j + 1] = 'path'
+
+                if maze.can_move(position, Direction.SOUTH):
+                    output[i + 1][j] = 'path'
+
         return output
 
     def interchange_list_element(
