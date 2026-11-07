@@ -66,6 +66,14 @@ class PacManApp:
         self.block: pg.Surface = load_trans_image(f'{IMAGES}/level-block.gif')
         self.block_pos: list[list[tuple[int, int]]] = []
         self.waka: pg.Surface = load_trans_image(f'{IMAGES}/waka-sprite.png')
+        self.ms_pellet: pg.Surface = load_trans_image(
+            f'{IMAGES}/ms-pellet-sprite.png'
+        )
+        # Visual movement is independent of the logical maze coordinates.
+        self.visual_move_start: tuple[int, int] | None = None
+        self.visual_move_end: tuple[int, int] | None = None
+        self.visual_move_started: float = 0.0
+        self.visual_move_duration: float = 0.12
 
     @property
     def bg_pos(self) -> tuple[int, int]:
@@ -297,20 +305,16 @@ class PacManApp:
                 )
                 if char_state is not None:
                     self._handle_char_select_action(char_state)
-            elif (
-                self.state == AppState.PLAYING
-                and self.active_level is not None
-            ):
-                x, y = self.active_level.player.position
-                if event.type == pg.KEYDOWN:
-                    if event.key == pg.K_UP:
-                        self.active_level.player.position = x, y - 1
-                    elif event.key == pg.K_DOWN:
-                        self.active_level.player.position = x, y - 1
-                    elif event.key == pg.K_LEFT:
-                        self.active_level.player.position = x - 1, y
-                    elif event.key == pg.K_RIGHT:
-                        self.active_level.player.position = x + 1, y
+            elif self.state == AppState.PLAYING and event.type == pg.KEYDOWN:
+                # Route keyboard input through the tested maze-aware movement.
+                if event.key == pg.K_UP:
+                    self.move_player(Direction.NORTH)
+                elif event.key == pg.K_DOWN:
+                    self.move_player(Direction.SOUTH)
+                elif event.key == pg.K_LEFT:
+                    self.move_player(Direction.WEST)
+                elif event.key == pg.K_RIGHT:
+                    self.move_player(Direction.EAST)
 
     def start_new_game(self) -> None:
         """Create the state for a new Pac-Man game."""
@@ -330,6 +334,8 @@ class PacManApp:
         )
         self.active_level_layout = self._get_active_level_layout()
         self.block_pos = self._get_block_pos()
+        self.visual_move_start = None
+        self.visual_move_end = None
         # Move into gameplay once the new run and level are ready.
         self.change_state(AppState.PLAYING)
 
@@ -353,12 +359,18 @@ class PacManApp:
         if self.active_level is None or self.game_state is None:
             return False
         # Delegate movement to the Player and stop if the maze blocks the move.
-        moved = self.active_level.player.move(
+        level = self.active_level
+        previous_position = level.player.position
+        moved = level.player.move(
             self.active_level.maze,
             direction
         )
         if not moved:
             return False
+        # Animate between cells without changing the logical position.
+        self.visual_move_start = previous_position
+        self.visual_move_end = level.player.position
+        self.visual_move_started = time.monotonic()
         # Check the player's new position and remove any pacgum found there.
         collected_pacgum = self.active_level.collect_pacgum(
             self.active_level.player.position
@@ -394,6 +406,8 @@ class PacManApp:
                 self.change_state(AppState.GAME_OVER)
             else:
                 self.active_level.reset_positions()
+                self.visual_move_start = None
+                self.visual_move_end = None
             return
 
     def _advance_level(
@@ -422,6 +436,11 @@ class PacManApp:
             time_limit=self.config.level_max_time,
             pacgum_count=self.config.pacgum
         )
+        # Refresh rendering coordinates for the newly generated maze.
+        self.active_level_layout = self._get_active_level_layout()
+        self.block_pos = self._get_block_pos()
+        self.visual_move_start = None
+        self.visual_move_end = None
 
     def _handle_main_menu_action(
         self,
@@ -495,17 +514,38 @@ class PacManApp:
         if self.active_level is None:
             return
 
-        # Gameplay systems will be coordinated from here.
+        # Draw the current maze, then the selected player sprite.
         self.screen.fill(color="black")
         for i, row in enumerate(self.active_level_layout):
             for j, col in enumerate(row):
                 if col == 'wall':
-                    self.screen.blit(self.block, (self.block_pos[i][j]))
-        player_x, player_y = (
-            self.active_level.player.position[0] * 2 + 1,
-            self.active_level.player.position[1] * 2 + 1
+                    self.screen.blit(self.block, self.block_pos[i][j])
+        # Map logical maze cells onto the expanded visual grid.
+        player_x, player_y = self.active_level.player.position
+        target = self.block_pos[player_y * 2 + 1][player_x * 2 + 1]
+        draw_x, draw_y = target
+
+        if (
+            self.visual_move_start is not None
+            and self.visual_move_end == self.active_level.player.position
+        ):
+            start_x, start_y = self.visual_move_start
+            origin = self.block_pos[start_y * 2 + 1][start_x * 2 + 1]
+            progress = min(
+                1.0,
+                (time.monotonic() - self.visual_move_started)
+                / self.visual_move_duration,
             )
-        self.screen.blit(self.waka, self.block_pos[player_y][player_x])
+            draw_x = round(origin[0] + (target[0] - origin[0]) * progress)
+            draw_y = round(origin[1] + (target[1] - origin[1]) * progress)
+            if progress >= 1.0:
+                self.visual_move_start = None
+                self.visual_move_end = None
+
+        if self.queen_chosen == CharSelectAction.WAKA_WAKA_WANDA:
+            self.screen.blit(self.waka, (draw_x, draw_y))
+        elif self.queen_chosen == CharSelectAction.MS_POWER_PELLET:
+            self.screen.blit(self.ms_pellet, (draw_x, draw_y))
 
     def _run_pause_menu(self) -> None:
         """Handle the paused application state."""
