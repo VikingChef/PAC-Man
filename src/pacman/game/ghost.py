@@ -3,6 +3,7 @@
 from enum import Enum, auto
 
 from pacman.maze.direction import Direction
+from pacman.maze.maze import Maze
 
 
 class GhostIdentity(Enum):
@@ -48,3 +49,27 @@ class Ghost:
         self.position = self.spawn_position
         self.direction = self.spawn_direction
         self.state = GhostState.ENRAGED
+
+    def move(
+        self,
+        maze: Maze,
+        direction: Direction,
+    ) -> bool:
+        """Move in the requested direction when the maze allows it."""
+
+        # Stop immediately when the maze blocks the requested movement.
+        if not maze.can_move(self.position, direction):
+            return False
+
+        # Combine the current position with the direction's movement delta.
+        dx, dy = direction.value
+        x, y = self.position
+        self.position = (
+            x + dx,
+            y + dy,
+        )
+
+        # Keep facing direction aligned with the successful move.
+        self.direction = direction
+
+        return True

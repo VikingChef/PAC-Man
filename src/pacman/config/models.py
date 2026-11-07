@@ -10,6 +10,7 @@ class LevelConfig:
     number: int
     width: int
     height: int
+    ghost_move_interval_ms: int = 400
 
 
 @dataclass

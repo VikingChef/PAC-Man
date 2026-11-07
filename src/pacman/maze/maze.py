@@ -11,6 +11,13 @@ DIRECTION_TO_WALL = {
     Direction.WEST: Wall.WEST,
 }
 
+OPPOSITE_WALL = {
+    Direction.NORTH: Wall.SOUTH,
+    Direction.SOUTH: Wall.NORTH,
+    Direction.EAST: Wall.WEST,
+    Direction.WEST: Wall.EAST,
+}
+
 
 class Maze:
     """Represent maze geometry independently from the external generator."""
@@ -58,20 +65,31 @@ class Maze:
         position: tuple[int, int],
         direction: Direction,
     ) -> bool:
-        """Return whether movement is possible in the given direction."""
+        """Return whether movement is possible between two maze cells."""
+
+        if not self.within_bounds(position):
+            return False
 
         dx, dy = direction.value
         x, y = position
-        destination = (
-            x + dx,
-            y + dy,
-        )
+        destination = (x + dx, y + dy)
 
-        # Movement cannot leave the maze boundaries.
         if not self.within_bounds(destination):
             return False
 
-        # Movement cannot cross a wall from the current maze cell.
-        wall = DIRECTION_TO_WALL[direction]
+        if position in self.reserved_positions:
+            return False
 
-        return not self.maze_grid[y][x] & wall
+        if destination in self.reserved_positions:
+            return False
+
+        current_walls = self.maze_grid[y][x]
+        destination_walls = self.maze_grid[destination[1]][destination[0]]
+
+        if current_walls & DIRECTION_TO_WALL[direction]:
+            return False
+
+        if destination_walls & OPPOSITE_WALL[direction]:
+            return False
+
+        return True
