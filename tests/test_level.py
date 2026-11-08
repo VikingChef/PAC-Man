@@ -361,6 +361,130 @@ def test_ghosts_return_to_enraged_when_timer_expires() -> None:
         assert ghost.state == GhostState.ENRAGED
 
 
+def test_eaten_ghost_survives_frightened_timer_expiry() -> None:
+    """Verify an eaten ghost stays eaten when frightened mode expires."""
+
+    config = LevelConfig(number=1, width=21, height=21)
+    maze = Maze([
+        [Wall.NONE for _ in range(21)]
+        for _ in range(21)
+    ])
+    player = Player(
+        spawn_position=(10, 10),
+        spawn_direction=Direction.EAST,
+    )
+    ghosts = create_test_ghosts(maze)
+
+    level = Level(
+        config=config,
+        maze=maze,
+        player=player,
+        ghosts=ghosts,
+        time_limit=90,
+        pacgums={},
+    )
+
+    # Activate frightened mode for six seconds.
+    level.frighten_ghosts()
+
+    # Let four seconds pass, leaving two seconds of frightened mode.
+    level.tick(4)
+
+    # Eat the first ghost, starting its five-second respawn countdown.
+    ghost = ghosts[0]
+    assert ghost.eat() is True
+    assert ghost.state == GhostState.EATEN
+
+    # Frightened mode expires, but the ghost has only been eaten for
+    # two seconds and still has three seconds until respawn.
+    level.tick(2)
+
+    assert level.frightened_timer == 0
+    assert ghost.state == GhostState.EATEN
+    assert ghost.respawn_timer == 3
+
+    # Other ghosts should return to their normal state.
+    for other_ghost in ghosts[1:]:
+        assert other_ghost.state == GhostState.ENRAGED
+
+
+def test_ghost_respawns_frightened_when_powerup_active() -> None:
+    """Verify a ghost respawns frightened while a power-up is active."""
+
+    config = LevelConfig(number=1, width=21, height=21)
+    maze = Maze([
+        [Wall.NONE for _ in range(21)]
+        for _ in range(21)
+    ])
+    player = Player(
+        spawn_position=(10, 10),
+        spawn_direction=Direction.EAST,
+    )
+    ghosts = create_test_ghosts(maze)
+
+    level = Level(
+        config=config,
+        maze=maze,
+        player=player,
+        ghosts=ghosts,
+        time_limit=90,
+        pacgums={},
+    )
+
+    level.frighten_ghosts()
+    level.tick(1)
+
+    ghost = ghosts[0]
+    assert ghost.eat() is True
+
+    # Three seconds later, another power-up refreshes frightened mode.
+    level.tick(2)
+    level.frighten_ghosts()
+
+    # The ghost completes its five-second respawn countdown.
+    level.tick(3)
+
+    assert ghost.respawn_timer == 0
+    assert ghost.position == ghost.spawn_position
+    assert ghost.state == GhostState.FRIGHTENED
+    assert level.frightened_timer == 3
+
+
+def test_ghost_respawns_enraged_after_powerup_expires() -> None:
+    """Verify an eaten ghost respawns enraged after frightened mode ends."""
+
+    config = LevelConfig(number=1, width=1, height=1)
+    maze = Maze([[Wall.NONE]])
+    player = Player((0, 0), Direction.EAST)
+    ghost = Ghost((0, 0), GhostIdentity.EGO_MACHINE, Direction.WEST)
+
+    level = Level(
+        config=config,
+        maze=maze,
+        player=player,
+        ghosts=[ghost],
+        time_limit=90,
+        pacgums={},
+    )
+
+    level.frighten_ghosts()
+    level.tick(4)
+
+    assert ghost.eat() is True
+
+    # Frightened mode ends before the ghost finishes respawning.
+    level.tick(2)
+    assert ghost.state == GhostState.EATEN
+
+    # The remaining three seconds complete the respawn.
+    level.tick(3)
+
+    assert level.frightened_timer == 0
+    assert ghost.respawn_timer == 0
+    assert ghost.position == ghost.spawn_position
+    assert ghost.state == GhostState.ENRAGED
+
+
 def test_enraged_ghost_moves_towards_player() -> None:
     """Verify that an enraged ghost moves closer to Pac-Man."""
     # Build an open maze with Pac-Man in the centre.
@@ -557,6 +681,81 @@ def test_multiple_ghost_collisions() -> None:
     )
     # Only the two ghosts sharing Pac-Man's cell should be returned.
     assert level.check_ghost_collision() == ghosts[:2]
+
+
+def test_eaten_ghost_does_not_collide() -> None:
+    """Verify that eaten ghosts do not collide."""
+    # Create a small open maze.
+    config = LevelConfig(number=1, width=3, height=3)
+    maze = Maze([
+        [Wall.NONE for _ in range(3)]
+        for _ in range(3)
+    ])
+    player = Player(
+        spawn_position=(1, 1),
+        spawn_direction=Direction.EAST,
+    )
+    # Place two ghosts on Pac-Man and one elsewhere.
+    ghosts = [
+        Ghost((1, 1), GhostIdentity.EGO_MACHINE, Direction.WEST),
+        Ghost((1, 1), GhostIdentity.TERF_HAG, Direction.NORTH),
+        Ghost((0, 0), GhostIdentity.ORANGE_PUNCHLINE, Direction.EAST),
+    ]
+    level = Level(
+        config=config,
+        maze=maze,
+        player=player,
+        ghosts=ghosts,
+        time_limit=90,
+        pacgums={},
+    )
+
+    # Set the first colliding ghost state to EATEN.
+    ghosts[0].state = GhostState.EATEN
+
+    # Assert that we only return a list of ghosts[1].
+    assert level.check_ghost_collision() == [ghosts[1]]
+
+
+def test_frighten_ghosts_preserves_eaten_state() -> None:
+    """Verify that another power-up does not revive an eaten ghost."""
+    # Build a 21x21 open maze for the four ghosts.
+    config = LevelConfig(
+        number=1,
+        width=21,
+        height=21,
+    )
+    maze = Maze([
+        [Wall.NONE for _ in range(21)]
+        for _ in range(21)
+    ])
+    player = Player(
+        spawn_position=(10, 10),
+        spawn_direction=Direction.EAST,
+    )
+    # Create the four ghosts at their designated spawn positions.
+    ghosts = create_test_ghosts(maze)
+    # Create the level with our player and four ghosts.
+    level = Level(
+        config=config,
+        maze=maze,
+        player=player,
+        ghosts=ghosts,
+        time_limit=90,
+        pacgums={},
+    )
+
+    # Set the first ghost's state to EATEN.
+    ghosts[0].state = GhostState.EATEN
+
+    level.frighten_ghosts()
+
+    # Verify that frightening ghosts does not change eaten state.
+    assert ghosts[0].state == GhostState.EATEN
+
+    # Verify that the remaining three ghosts become frightened.
+    for ghost in ghosts[1:]:
+        assert ghost.state == GhostState.FRIGHTENED
 
 
 def test_reset_positions_preserves_level_progress() -> None:

@@ -187,28 +187,34 @@ class PacManApp:
 
     def run(self) -> None:
         """Run the Pac-Man application."""
+
         # Track real elapsed time between frames.
         previous_time: float = time.monotonic()
         accumulated_time: float = 0.0
         ghost_accumulated_time: float = 0.0
         previous_level: Level | None = self.active_level
+
         # Keep one central loop and route each cycle by application state.
         while self.running:
             iter_start: float = time.time()
+
             # Measure elapsed time using a monotonic clock.
             current_time: float = time.monotonic()
             elapsed_time = current_time - previous_time
             previous_time = current_time
+
             # Remember the state before processing new input.
             previous_state = self.state
             self._load_bg()
             self._get_events()
+
             # Detect level change and lose the previous level's partial time.
             level_changed = self.active_level is not previous_level
             if level_changed:
                 accumulated_time = 0.0
                 ghost_accumulated_time = 0.0
                 previous_level = self.active_level
+
             # Advance timers only during uninterrupted active gameplay.
             if (
                 previous_state == AppState.PLAYING
@@ -218,20 +224,37 @@ class PacManApp:
                 and self.game_state is not None
             ):
                 accumulated_time += elapsed_time
+
                 # Process complete seconds while preserving fractions.
                 while accumulated_time >= 1.0:
                     self.active_level.tick(1)
                     accumulated_time -= 1.0
+
                 # Accumulate time independently for ghost movement.
                 ghost_accumulated_time += elapsed_time
+
                 # Convert the configured movement interval to seconds.
                 ghost_interval = (
                     self.active_level.config.ghost_move_interval_ms / 1000
                 )
+
                 # Move ghosts once for each completed movement interval.
                 while ghost_accumulated_time >= ghost_interval:
                     self.active_level.move_ghosts()
                     ghost_accumulated_time -= ghost_interval
+
+                    # Resolve collisions caused by ghost movement.
+                    lives_before_collision = self.game_state.lives
+                    self.resolve_ghost_collisions()
+
+                    # Stop processing movements after death or game ends.
+                    if (
+                        self.state != AppState.PLAYING
+                        or self.game_state.lives < lives_before_collision
+                    ):
+                        ghost_accumulated_time = 0.0
+                        break
+
             elif (
                 self.state == AppState.PAUSED
                 or (
@@ -368,6 +391,7 @@ class PacManApp:
         # Gameplay movement requires both an active level and run-wide state.
         if self.active_level is None or self.game_state is None:
             return False
+
         # Delegate movement to the Player and stop if the maze blocks the move.
         level = self.active_level
         previous_position = level.player.position
@@ -377,6 +401,7 @@ class PacManApp:
         )
         if not moved:
             return False
+
         # Animate between cells without changing the logical position.
         self.visual_move_start = previous_position
         self.visual_move_end = level.player.position
@@ -385,15 +410,29 @@ class PacManApp:
         collected_pacgum = self.active_level.collect_pacgum(
             self.active_level.player.position
         )
+
         # Apply the configured score for the collected pacgum type.
         if collected_pacgum == PacgumType.PACGUM:
             self.game_state.score += self.config.points_per_pacgum
         elif collected_pacgum == PacgumType.SUPER_PACGUM:
             self.game_state.score += self.config.points_per_super_pacgum
             self.active_level.frighten_ghosts()
+
         # Advance once collecting the final pacgum completes the level.
         if self.active_level.is_complete:
             self._advance_level()
+
+        # Resolve collisions after collecting any pacgum.
+        lives_before_collision = self.game_state.lives
+        self.resolve_ghost_collisions()
+
+        # Do not advance the level after losing a life.
+        if (
+            self.state != AppState.PLAYING
+            or self.game_state.lives < lives_before_collision
+        ):
+            return True
+
         # Preserve the movement contract: a successful move returns True.
         return True
 
@@ -419,6 +458,11 @@ class PacManApp:
                 self.visual_move_start = None
                 self.visual_move_end = None
             return
+
+        # Eat frightened ghosts and award points for each successful capture.
+        for ghost in colliding_ghosts:
+            if ghost.eat():
+                self.game_state.score += self.config.points_per_ghost
 
     def _advance_level(
         self,

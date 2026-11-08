@@ -48,19 +48,23 @@ class Level:
         self.frightened_timer = 6
 
         for ghost in self.ghosts:
-            ghost.state = GhostState.FRIGHTENED
+            if ghost.state != GhostState.EATEN:
+                ghost.state = GhostState.FRIGHTENED
 
     def move_ghosts(self) -> None:
-        """Move each ghost one cell according to its AI behaviour."""
+        """Move each active ghost one cell according to its AI behaviour."""
 
-        # Calculate the shortest routes from Pac-Man's position.
+        # Calculate shortest-path distances from Pac-Man's position.
         distances = calculate_distances(
             self.maze,
             self.player.position,
         )
 
-        # Choose and perform one movement for each ghost.
+        # Move active ghosts; eaten ghosts wait for their respawn.
         for ghost in self.ghosts:
+            if ghost.state == GhostState.EATEN:
+                continue
+
             direction = choose_ghost_direction(
                 ghost,
                 self.maze,
@@ -77,7 +81,10 @@ class Level:
         colliding_ghosts: list[Ghost] = []
 
         for ghost in self.ghosts:
-            if ghost.position == self.player.position:
+            if (
+                ghost.position == self.player.position
+                and ghost.state != GhostState.EATEN
+            ):
                 colliding_ghosts.append(ghost)
 
         return colliding_ghosts
@@ -114,7 +121,14 @@ class Level:
         # Restore normal ghost behaviour when frightened time expires.
         if was_frightened and self.frightened_timer == 0:
             for ghost in self.ghosts:
-                ghost.state = GhostState.ENRAGED
+                if ghost.state == GhostState.FRIGHTENED:
+                    ghost.state = GhostState.ENRAGED
+
+        for ghost in self.ghosts:
+            ghost.tick(
+                elapsed_seconds,
+                self.frightened_timer > 0,
+            )
 
     @property
     def is_time_up(self) -> bool:

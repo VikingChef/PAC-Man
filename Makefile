@@ -6,7 +6,7 @@ install:
 	uv sync
 
 run:
-	uv run python pac-man.py $(CONFIG)
+	PYTHONPATH=src uv run python pac-man.py config.json
 
 debug:
 	uv run python -m pdb pac-man.py $(CONFIG)
