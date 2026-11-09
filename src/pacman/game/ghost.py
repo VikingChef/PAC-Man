@@ -37,6 +37,7 @@ class Ghost:
         spawn_position: tuple[int, int],
         identity: GhostIdentity,
         spawn_direction: Direction,
+        sprite_path: str
     ) -> None:
         """Initialize ghost identity, spawn data, and current state."""
 
@@ -48,10 +49,15 @@ class Ghost:
         self.direction = spawn_direction
         self.state = GhostState.ENRAGED
         self.respawn_timer = 0
-        self.sprite: dict[str, pg.Surface] = {
-           "front": load_trans_image(f'{IMAGES}/ghosts/ego-machine-front.png'),
-           "left": load_trans_image(f'{IMAGES}/ghosts/ego-machine-left.png'),
-           "right": load_trans_image(f'{IMAGES}/ghosts/ego-machine-right.png')
+        self.sprite: dict[Direction, pg.Surface] = {
+         Direction.NORTH: load_trans_image(
+             f'{IMAGES}/ghosts/{sprite_path}-front.png'),
+         Direction.SOUTH: load_trans_image(
+             f'{IMAGES}/ghosts/{sprite_path}-front.png'),
+         Direction.WEST: load_trans_image(
+             f'{IMAGES}/ghosts/{sprite_path}-left.png'),
+         Direction.EAST: load_trans_image(
+             f'{IMAGES}/ghosts/{sprite_path}-right.png')
         }
 
     def reset(self) -> None:

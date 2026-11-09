@@ -10,7 +10,7 @@ from pacman.app.actions import CharacterSelect, CharSelectAction
 from pacman.app.actions import LoadingBar, MainMenu, MainMenuAction, center
 from pacman.app.actions import load_trans_image, IMAGES
 from pacman.config.models import GameConfig
-from pacman.game.ghost import GhostState, Ghost
+from pacman.game.ghost import GhostState
 from pacman.game.level import Level
 from pacman.game.level_factory import create_level
 from pacman.game.pacgum import PacgumType
@@ -65,15 +65,20 @@ class PacManApp:
         self.active_level_layout: list[list[str]] = []
         self.block: pg.Surface = load_trans_image(f'{IMAGES}/level-block.gif')
         self.block_pos: list[list[tuple[int, int]]] = []
-        self.waka: pg.Surface = load_trans_image(f'{IMAGES}/waka-sprite.png')
-        self.ms_pellet: pg.Surface = load_trans_image(
-            f'{IMAGES}/ms-pellet-sprite.png'
-        )
+
         # Visual movement is independent of the logical maze coordinates.
         self.visual_move_start: tuple[int, int] | None = None
         self.visual_move_end: tuple[int, int] | None = None
         self.visual_move_started: float = 0.0
         self.visual_move_duration: float = 0.12
+
+        self.direction: list[Direction] = []
+        self.key_map: dict[int, Direction] = {
+            pg.K_UP: Direction.NORTH,
+            pg.K_DOWN: Direction.SOUTH,
+            pg.K_RIGHT: Direction.EAST,
+            pg.K_LEFT: Direction.WEST
+        }
 
     @property
     def bg_pos(self) -> tuple[int, int]:
@@ -338,16 +343,11 @@ class PacManApp:
                 )
                 if char_state is not None:
                     self._handle_char_select_action(char_state)
-            elif self.state == AppState.PLAYING and event.type == pg.KEYDOWN:
+            elif (self.state == AppState.PLAYING
+                  and event.type == pg.KEYDOWN
+                  and event.key in self.key_map):
                 # Route keyboard input through the tested maze-aware movement.
-                if event.key == pg.K_UP:
-                    self.move_player(Direction.NORTH)
-                elif event.key == pg.K_DOWN:
-                    self.move_player(Direction.SOUTH)
-                elif event.key == pg.K_LEFT:
-                    self.move_player(Direction.WEST)
-                elif event.key == pg.K_RIGHT:
-                    self.move_player(Direction.EAST)
+                self.move_player(self.key_map[event.key])
 
     def start_new_game(self) -> None:
         """Create the state for a new Pac-Man game."""
@@ -364,6 +364,7 @@ class PacManApp:
             seed=self.config.seed,
             time_limit=self.config.level_max_time,
             pacgum_count=self.config.pacgum,
+            player_sprite=self.queen_chosen
         )
         self.active_level_layout = self._get_active_level_layout()
         self.block_pos = self._get_block_pos()
@@ -575,18 +576,14 @@ class PacManApp:
                 if col == 'wall':
                     self.screen.blit(self.block, self.block_pos[i][j])
 
-        if self.queen_chosen == CharSelectAction.WAKA_WAKA_WANDA:
-            self.screen.blit(
-                self.waka,
-                self.pos(self.active_level.player.position)
-                )
-        elif self.queen_chosen == CharSelectAction.MS_POWER_PELLET:
-            self.screen.blit(
-                self.ms_pellet,
-                self.pos(self.active_level.player.position)
-                )
+        direction: Direction = self.active_level.player.direction
+        self.screen.blit(
+            self.active_level.player.sprite_path[direction],
+            self.pos(self.active_level.player.position)
+            )
         for ghost in self.active_level.ghosts:
-            self.screen.blit(ghost.sprite['front'], self.pos(ghost.position))
+            direction = ghost.direction
+            self.screen.blit(ghost.sprite[direction], self.pos(ghost.position))
 
     def _run_pause_menu(self) -> None:
         """Handle the paused application state."""
