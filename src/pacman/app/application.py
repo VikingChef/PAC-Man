@@ -38,6 +38,7 @@ class PacManApp:
 
     def __init__(self, config: GameConfig) -> None:
         """Create the application with validated configuration data."""
+        pg.init()
         # Store the validated configuration for the whole application.
         self.config = config
         # Start the application in the main menu.
@@ -72,13 +73,19 @@ class PacManApp:
         self.visual_move_started: float = 0.0
         self.visual_move_duration: float = 0.12
 
-        self.direction: list[Direction] = []
         self.key_map: dict[int, Direction] = {
             pg.K_UP: Direction.NORTH,
+            pg.K_w: Direction.NORTH,
             pg.K_DOWN: Direction.SOUTH,
+            pg.K_s: Direction.SOUTH,
             pg.K_RIGHT: Direction.EAST,
-            pg.K_LEFT: Direction.WEST
+            pg.K_d: Direction.EAST,
+            pg.K_LEFT: Direction.WEST,
+            pg.K_a: Direction.WEST
         }
+        self.font: pg.font.Font = pg.font.Font(
+            "src/pacman/app/assets/PressStart2P-Regular.ttf", 40)
+        self.level_bg: pg.Surface = load_trans_image(f'{IMAGES}/level-bg.png')
 
     @property
     def bg_pos(self) -> tuple[int, int]:
@@ -93,6 +100,16 @@ class PacManApp:
             self.bg[0].get_height(),
         )
         return (bg_x, bg_y)
+
+    @property
+    def timer(self) -> pg.Surface | None:
+        if self.active_level is None:
+            return None
+        return self.font.render(
+            str(self.active_level.remaining_time),
+            True,
+            color='white'
+            )
 
     def _get_active_level_layout(self) -> list[list[str]]:
         if self.active_level is None:
@@ -570,7 +587,7 @@ class PacManApp:
             return
 
         # Draw the current maze, then the selected player sprite.
-        self.screen.fill(color="black")
+        self.screen.blit(self.level_bg, self.bg_pos)
         for i, row in enumerate(self.active_level_layout):
             for j, col in enumerate(row):
                 if col == 'wall':
@@ -584,6 +601,8 @@ class PacManApp:
         for ghost in self.active_level.ghosts:
             direction = ghost.direction
             self.screen.blit(ghost.sprite[direction], self.pos(ghost.position))
+        x, y = self.screen.get_width() - self.timer.get_width() - 10, 10
+        self.screen.blit(self.timer, (x, y))
 
     def _run_pause_menu(self) -> None:
         """Handle the paused application state."""
