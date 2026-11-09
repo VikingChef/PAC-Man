@@ -2,6 +2,8 @@
 
 from pacman.maze.direction import Direction
 from pacman.maze.maze import Maze
+from pacman.app.application import load_trans_image, IMAGES
+import pygame as pg
 
 
 class Player:
@@ -11,6 +13,7 @@ class Player:
         self,
         spawn_position: tuple[int, int],
         spawn_direction: Direction,
+        path: str
     ) -> None:
         """Initialize spawn state and current player state."""
 
@@ -19,6 +22,16 @@ class Player:
         self.spawn_direction = spawn_direction
         self.position = spawn_position
         self.direction = spawn_direction
+        self.sprite_path: dict[str, pg.Surface] = {
+         Direction.NORTH: load_trans_image(
+             f'{IMAGES}/player/{path}-front.png'),
+         Direction.SOUTH: load_trans_image(
+             f'{IMAGES}/player/{path}-front.png'),
+         Direction.EAST: load_trans_image(
+             f'{IMAGES}/player/{path}-right.png'),
+         Direction.WEST: load_trans_image(
+             f'{IMAGES}/player/{path}-left.png')
+        }
 
     def reset(self) -> None:
         """Reset the player to its spawn position and direction."""
