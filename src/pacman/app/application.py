@@ -10,7 +10,7 @@ from pacman.app.actions import CharacterSelect, CharSelectAction
 from pacman.app.actions import LoadingBar, MainMenu, MainMenuAction, center
 from pacman.app.actions import load_trans_image, IMAGES
 from pacman.config.models import GameConfig
-from pacman.game.ghost import GhostState
+from pacman.game.ghost import GhostState, Ghost
 from pacman.game.level import Level
 from pacman.game.level_factory import create_level
 from pacman.game.pacgum import PacgumType
@@ -574,32 +574,19 @@ class PacManApp:
             for j, col in enumerate(row):
                 if col == 'wall':
                     self.screen.blit(self.block, self.block_pos[i][j])
-        # Map logical maze cells onto the expanded visual grid.
-        player_x, player_y = self.active_level.player.position
-        target = self.block_pos[player_y * 2 + 1][player_x * 2 + 1]
-        draw_x, draw_y = target
-
-        if (
-            self.visual_move_start is not None
-            and self.visual_move_end == self.active_level.player.position
-        ):
-            start_x, start_y = self.visual_move_start
-            origin = self.block_pos[start_y * 2 + 1][start_x * 2 + 1]
-            progress = min(
-                1.0,
-                (time.monotonic() - self.visual_move_started)
-                / self.visual_move_duration,
-            )
-            draw_x = round(origin[0] + (target[0] - origin[0]) * progress)
-            draw_y = round(origin[1] + (target[1] - origin[1]) * progress)
-            if progress >= 1.0:
-                self.visual_move_start = None
-                self.visual_move_end = None
 
         if self.queen_chosen == CharSelectAction.WAKA_WAKA_WANDA:
-            self.screen.blit(self.waka, (draw_x, draw_y))
+            self.screen.blit(
+                self.waka,
+                self.pos(self.active_level.player.position)
+                )
         elif self.queen_chosen == CharSelectAction.MS_POWER_PELLET:
-            self.screen.blit(self.ms_pellet, (draw_x, draw_y))
+            self.screen.blit(
+                self.ms_pellet,
+                self.pos(self.active_level.player.position)
+                )
+        for ghost in self.active_level.ghosts:
+            self.screen.blit(ghost.sprite['front'], self.pos(ghost.position))
 
     def _run_pause_menu(self) -> None:
         """Handle the paused application state."""
@@ -630,6 +617,30 @@ class PacManApp:
         """Handle the instructions application state."""
         # Instruction presentation will connect to the UI layer here.
         pass
+
+    def pos(self, pos: tuple[int, int]) -> tuple[int, int]:
+        # Map logical maze cells onto the expanded visual grid.
+        x, y = pos
+        target = self.block_pos[y * 2 + 1][x * 2 + 1]
+        draw_x, draw_y = target
+
+        if (
+            self.visual_move_start is not None
+            and self.visual_move_end == pos
+        ):
+            start_x, start_y = self.visual_move_start
+            origin = self.block_pos[start_y * 2 + 1][start_x * 2 + 1]
+            progress = min(
+                1.0,
+                (time.monotonic() - self.visual_move_started)
+                / self.visual_move_duration,
+            )
+            draw_x = round(origin[0] + (target[0] - origin[0]) * progress)
+            draw_y = round(origin[1] + (target[1] - origin[1]) * progress)
+            if progress >= 1.0:
+                self.visual_move_start = None
+                self.visual_move_end = None
+        return (draw_x, draw_y)
 
     def __enter__(self) -> "PacManApp":
         """Dunder method for context managers.

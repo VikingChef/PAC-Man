@@ -2,9 +2,11 @@
 """Represent Pac-Man ghost identity, state, and physical gameplay data."""
 
 from enum import Enum, auto
+import pygame as pg
 
 from pacman.maze.direction import Direction
 from pacman.maze.maze import Maze
+from pacman.app.actions import load_trans_image, IMAGES
 
 
 RESPAWN_DELAY = 5
@@ -46,6 +48,11 @@ class Ghost:
         self.direction = spawn_direction
         self.state = GhostState.ENRAGED
         self.respawn_timer = 0
+        self.sprite: dict[str, pg.Surface] = {
+           "front": load_trans_image(f'{IMAGES}/ghosts/ego-machine-front.png'),
+           "left": load_trans_image(f'{IMAGES}/ghosts/ego-machine-left.png'),
+           "right": load_trans_image(f'{IMAGES}/ghosts/ego-machine-right.png')
+        }
 
     def reset(self) -> None:
         """Restore the ghost to its initial spawn state."""
