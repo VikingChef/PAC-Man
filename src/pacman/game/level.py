@@ -9,6 +9,7 @@ from pacman.game.ghost_ai import (
     calculate_distances,
     choose_ghost_direction,
 )
+import pygame as pg
 
 
 class Level:
@@ -21,7 +22,7 @@ class Level:
         player: Player,
         ghosts: list[Ghost],
         time_limit: int,
-        pacgums: dict[tuple[int, int], PacgumType],
+        pacgums: dict[tuple[int, int], tuple[PacgumType, pg.Surface]],
     ) -> None:
         """Receive the initial pieces for one level, and create level state."""
 
@@ -40,7 +41,8 @@ class Level:
     ) -> PacgumType | None:
         """Remove and return the pacgum at a position, if present."""
 
-        return self.pacgums.pop(position, None)
+        pacgum: PacgumType | None = self.pacgums.pop(position, None)
+        return pacgum[0] if pacgum is not None else None
 
     def frighten_ghosts(self) -> None:
         """Set all ghosts to frightened and restart the frightened timer."""

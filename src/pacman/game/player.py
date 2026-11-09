@@ -22,7 +22,7 @@ class Player:
         self.spawn_direction = spawn_direction
         self.position = spawn_position
         self.direction = spawn_direction
-        self.sprite_path: dict[str, pg.Surface] = {
+        self.sprite_path: dict[Direction, pg.Surface] = {
          Direction.NORTH: load_trans_image(
              f'{IMAGES}/player/{path}-front.png'),
          Direction.SOUTH: load_trans_image(

@@ -2,6 +2,7 @@
 import os
 import time
 from collections.abc import Iterator
+from typing import Final
 from enum import Enum, auto
 from random import randint
 from types import TracebackType
@@ -17,6 +18,9 @@ from pacman.game.pacgum import PacgumType
 from pacman.game.state import GameState
 from pacman.maze.direction import Direction
 from pacman.maze.wall import Wall
+
+
+ALL_WALLS: Final = Wall.WEST | Wall.EAST | Wall.SOUTH | Wall.NORTH
 
 
 class AppState(Enum):
@@ -173,6 +177,7 @@ class PacManApp:
                 position = ((j - 1) // 2, (i - 1) // 2)
 
                 if position in maze.reserved_positions:
+                    output[i][j] = 'wall'
                     continue
 
                 output[i][j] = 'path'
@@ -506,7 +511,8 @@ class PacManApp:
             config=next_level_config,
             seed=next_level_seed,
             time_limit=self.config.level_max_time,
-            pacgum_count=self.config.pacgum
+            pacgum_count=self.config.pacgum,
+            player_sprite=self.queen_chosen
         )
         # Refresh rendering coordinates for the newly generated maze.
         self.active_level_layout = self._get_active_level_layout()
@@ -594,15 +600,27 @@ class PacManApp:
                     self.screen.blit(self.block, self.block_pos[i][j])
 
         direction: Direction = self.active_level.player.direction
+        queen: pg.Surface = (
+            self.active_level.player.sprite_path[direction]
+            )
+        dim: tuple[int, int] = (queen.get_width(), queen.get_height())
         self.screen.blit(
             self.active_level.player.sprite_path[direction],
-            self.pos(self.active_level.player.position)
+            self.pos(self.active_level.player.position, dim)
             )
+
         for ghost in self.active_level.ghosts:
             direction = ghost.direction
-            self.screen.blit(ghost.sprite[direction], self.pos(ghost.position))
+            dim = (ghost.sprite[direction].get_width(),
+                   ghost.sprite[direction].get_height())
+            self.screen.blit(ghost.sprite[direction],
+                             self.pos(ghost.position, dim))
         x, y = self.screen.get_width() - self.timer.get_width() - 10, 10
         self.screen.blit(self.timer, (x, y))
+
+        for position, pacgum in self.active_level.pacgums.items():
+            dim = (pacgum[1].get_width(), pacgum[1].get_height())
+            self.screen.blit(pacgum[1], self.pos(position, dim))
 
     def _run_pause_menu(self) -> None:
         """Handle the paused application state."""
@@ -634,7 +652,9 @@ class PacManApp:
         # Instruction presentation will connect to the UI layer here.
         pass
 
-    def pos(self, pos: tuple[int, int]) -> tuple[int, int]:
+    def pos(self,
+            pos: tuple[int, int],
+            dim: tuple[int, int]) -> tuple[int, int]:
         # Map logical maze cells onto the expanded visual grid.
         x, y = pos
         target = self.block_pos[y * 2 + 1][x * 2 + 1]
@@ -656,7 +676,9 @@ class PacManApp:
             if progress >= 1.0:
                 self.visual_move_start = None
                 self.visual_move_end = None
-        return (draw_x, draw_y)
+        block_x, block_y = self.block.get_width(), self.block.get_height()
+        return (center(block_x, dim[0]) + draw_x,
+                center(block_y, dim[1]) + draw_y)
 
     def __enter__(self) -> "PacManApp":
         """Dunder method for context managers.
