@@ -2,6 +2,7 @@
 from types import SimpleNamespace
 
 import pytest
+import pygame as pg
 
 from pacman.app.actions import CharSelectAction, MainMenuAction
 from pacman.app.application import AppState, PacManApp
@@ -40,6 +41,15 @@ def _test_config() -> GameConfig:
     )
 
 
+def _start_test_game(app: PacManApp) -> None:
+    """Choose a test character before starting the gameplay run."""
+    # Application tests start gameplay directly instead of clicking through
+    # the character selection screen. Supply the same valid choice the UI
+    # would normally provide, while keeping character selection required.
+    app.change_queen(CharSelectAction.WAKA_WAKA_WANDA)
+    app.start_new_game()
+
+
 def test_app_starts_in_main_menu() -> None:
     """Check the initial application state."""
     # Create a fresh application with a valid test configuration.
@@ -55,7 +65,7 @@ def test_start_new_game_creates_game_state() -> None:
     # Create the application before any game has started.
     app = PacManApp(_test_config())
     # Start a new game using the configured default values.
-    app.start_new_game()
+    _start_test_game(app)
     # Confirm the run state was created correctly.
     assert app.game_state is not None
     assert app.game_state.score == 0
@@ -152,7 +162,7 @@ def test_move_player_moves_active_player() -> None:
     """Verify that the app delegates movement to the active player."""
     # Start a game so the application has an active level and player.
     app = PacManApp(_test_config())
-    app.start_new_game()
+    _start_test_game(app)
     # Keep the test explicit about the state required for gameplay.
     assert app.active_level is not None
     player = app.active_level.player
@@ -185,7 +195,7 @@ def test_advance_level_creates_next_level() -> None:
     )
     # Start a game on level one and keep its Level object for comparison.
     app = PacManApp(config)
-    app.start_new_game()
+    _start_test_game(app)
     first_level = app.active_level
     # Advance from level one into the next configured level.
     app._advance_level()
@@ -201,7 +211,7 @@ def test_advance_level_reaches_victory_after_final_level() -> None:
     config = _test_config()
     # Start a game on the only configured level.
     app = PacManApp(config)
-    app.start_new_game()
+    _start_test_game(app)
     # Attempt to advance after completing the final level.
     app._advance_level()
     # Final-level progression should enter the victory state.
@@ -212,7 +222,7 @@ def test_frightened_ghosts_after_super_pacgum() -> None:
     """Verify that ghosts are frightened after super-pacgum is obtained."""
     # Start a game so the application has an active level and player.
     app = PacManApp(_test_config())
-    app.start_new_game()
+    _start_test_game(app)
     # Keep the test explicit about the state required for gameplay.
     assert app.active_level is not None
     player = app.active_level.player
@@ -229,7 +239,9 @@ def test_frightened_ghosts_after_super_pacgum() -> None:
     x, y = player.position
     destination = (x + dx, y + dy)
     # Place a super-pacgum at the player's next position.
-    app.active_level.pacgums[destination] = PacgumType.SUPER_PACGUM
+    app.active_level.pacgums[destination] = (
+        PacgumType.SUPER_PACGUM, pg.Surface((1, 1))
+    )
     # Move the player onto the super-pacgum.
     moved = app.move_player(direction)
     assert moved is True
@@ -244,7 +256,7 @@ def test_game_loop_advances_timers(
     """Verify that gameplay timers advance with real elapsed time."""
     # Create an active game with frightened ghosts.
     app = PacManApp(_test_config())
-    app.start_new_game()
+    _start_test_game(app)
     assert app.active_level is not None
     level = app.active_level
     level.frighten_ghosts()
@@ -285,7 +297,7 @@ def test_game_loop_preserves_time_during_pause(
 ) -> None:
     """Verify that pausing freezes timers without losing partial seconds."""
     app = PacManApp(_test_config())
-    app.start_new_game()
+    _start_test_game(app)
     assert app.active_level is not None
     level = app.active_level
     level.frighten_ghosts()
@@ -346,7 +358,7 @@ def test_game_loop_resets_time_when_level_changes(
 ) -> None:
     """Verify that a new level starts with no accumulated gameplay time."""
     app = PacManApp(_test_config())
-    app.start_new_game()
+    _start_test_game(app)
     assert app.active_level is not None
     original_level = app.active_level
     initial_time = original_level.remaining_time
@@ -380,7 +392,7 @@ def test_game_loop_resets_time_when_level_changes(
         nonlocal frames
         frames += 1
         if frames == 3:
-            app.start_new_game()
+            _start_test_game(app)
         elif frames == 6:
             app.stop()
     monkeypatch.setattr(app, "_get_events", simulate_events)
@@ -397,7 +409,7 @@ def test_pause_and_resume_game() -> None:
     """Check that the pause/resume changes app state."""
     # Create the application in its initial state and start new game.
     app = PacManApp(_test_config())
-    app.start_new_game()
+    _start_test_game(app)
     # Assert that game is running
     assert app.state == AppState.PLAYING
     # Set application state to PAUSED, and then assert.
@@ -527,7 +539,7 @@ def test_final_life_collision_ends_game() -> None:
 def test_player_movement_into_enraged_ghost_loses_life() -> None:
     """Verify that moving into an enraged ghost costs one life."""
     app = PacManApp(_test_config())
-    app.start_new_game()
+    _start_test_game(app)
     assert app.active_level is not None
     assert app.game_state is not None
 
@@ -545,7 +557,9 @@ def test_player_movement_into_enraged_ghost_loses_life() -> None:
     ghost.position = destination
     ghost.state = GhostState.ENRAGED
     # Prevent a super-pacgum from frightening the ghost first.
-    level.pacgums[destination] = PacgumType.PACGUM
+    level.pacgums[destination] = (
+        PacgumType.PACGUM, pg.Surface((1, 1))
+    )
 
     moved = app.move_player(direction)
     assert moved is True
@@ -559,7 +573,7 @@ def test_player_movement_into_enraged_ghost_loses_life() -> None:
 def test_super_pacgum_activates_before_ghost_collision() -> None:
     """Verify a super-pacgum makes a ghost edible before collision."""
     app = PacManApp(_test_config())
-    app.start_new_game()
+    _start_test_game(app)
     assert app.active_level is not None
     assert app.game_state is not None
 
@@ -576,7 +590,9 @@ def test_super_pacgum_activates_before_ghost_collision() -> None:
     # The super-pacgum must be collected before resolving the ghost collision.
     ghost.position = destination
     ghost.state = GhostState.ENRAGED
-    level.pacgums[destination] = PacgumType.SUPER_PACGUM
+    level.pacgums[destination] = (
+        PacgumType.SUPER_PACGUM, pg.Surface((1, 1))
+    )
 
     moved = app.move_player(direction)
     assert moved is True
@@ -598,7 +614,7 @@ def test_game_loop_enters_timeout_state(
 ) -> None:
     """Verify that timer expiry stops gameplay and ghost movement."""
     app = PacManApp(_test_config())
-    app.start_new_game()
+    _start_test_game(app)
     assert app.active_level is not None
     level = app.active_level
     level.remaining_time = 1
@@ -643,7 +659,7 @@ def test_ghost_movement_collision_loses_one_life(
 ) -> None:
     """Verify ghost movement causes one collision and stops further moves."""
     app = PacManApp(_test_config())
-    app.start_new_game()
+    _start_test_game(app)
     assert app.active_level is not None
     assert app.game_state is not None
     level = app.active_level
@@ -682,7 +698,7 @@ def test_ghost_movement_collision_loses_one_life(
 def test_timeout_deducts_one_life() -> None:
     """Verify that timeout costs one life and restarts gameplay."""
     app = PacManApp(_test_config())
-    app.start_new_game()
+    _start_test_game(app)
     assert app.game_state is not None
     starting_lives = app.game_state.lives
     app._finish_timeout()
@@ -693,7 +709,7 @@ def test_timeout_deducts_one_life() -> None:
 def test_timeout_preserves_score_and_level() -> None:
     """Verify that timeout restarts the same level without losing score."""
     app = PacManApp(_test_config())
-    app.start_new_game()
+    _start_test_game(app)
     assert app.game_state is not None
     app.game_state.score = 500
     original_level = app.active_level
@@ -706,7 +722,7 @@ def test_timeout_preserves_score_and_level() -> None:
 def test_timeout_on_last_life_ends_game() -> None:
     """Verify that losing the final life ends the game."""
     app = PacManApp(_test_config())
-    app.start_new_game()
+    _start_test_game(app)
     assert app.game_state is not None
     original_level = app.active_level
     app.game_state.lives = 1
@@ -721,7 +737,7 @@ def test_timeout_waits_three_seconds(
 ) -> None:
     """Verify that timeout waits three seconds before deducting a life."""
     app = PacManApp(_test_config())
-    app.start_new_game()
+    _start_test_game(app)
     assert app.game_state is not None
     starting_lives = app.game_state.lives
     app.timeout_started_at = 10.0
@@ -758,13 +774,13 @@ def test_timeout_waits_three_seconds(
 def test_new_game_resets_cheats() -> None:
     """Verify that a new game resets cheat settings and history."""
     app = PacManApp(_test_config())
-    app.start_new_game()
+    _start_test_game(app)
     app.cheat_mode.toggle_invincibility()
     app.cheat_mode.toggle_disco_enabled()
     assert app.cheat_mode.invincible is True
     assert app.cheat_mode.disco_enabled is True
     assert app.cheat_mode.cheats_used is True
-    app.start_new_game()
+    _start_test_game(app)
     assert app.cheat_mode.invincible is False
     assert app.cheat_mode.disco_enabled is False
     assert app.cheat_mode.cheats_used is False

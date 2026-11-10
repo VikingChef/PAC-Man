@@ -1,11 +1,15 @@
 """Application orchestrator for Pac-Man."""
+
 import os
 import time
 from collections.abc import Iterator
+from typing import Final
 from enum import Enum, auto
 from random import randint
 from types import TracebackType
+
 import pygame as pg
+
 from pacman.app.actions import CharacterSelect, CharSelectAction
 from pacman.app.actions import LoadingBar, MainMenu, MainMenuAction, center
 from pacman.app.actions import load_trans_image, IMAGES
@@ -20,8 +24,12 @@ from pacman.maze.wall import Wall
 from pacman.game.cheat_mode import CheatMode
 
 
+ALL_WALLS: Final = Wall.WEST | Wall.EAST | Wall.SOUTH | Wall.NORTH
+
+
 class AppState(Enum):
     """Possible states of the Pac-Man application."""
+
     # Define the screens and modes controlled by the orchestrator.
     MAIN_MENU = auto()
     PLAYING = auto()
@@ -41,21 +49,31 @@ class PacManApp:
     def __init__(self, config: GameConfig) -> None:
         """Create the application with validated configuration data."""
 
+        # Initialise Pygame before creating the display or loading sprites.
+        pg.init()
+
         # Store the validated configuration for the whole application.
         self.config = config
+
         # Start the application in the main menu.
         self.state = AppState.MAIN_MENU
+
         # Track whether the main application loop should continue.
         self.running = True
+
         # Track start time for animations.
         self.start_time: float = time.time() * 1000
+
         # Create run-specific game state only when a new game starts.
         self.game_state: GameState | None = None
+
         # Create the active level only when a new game starts.
         self.active_level: Level | None = None
         self.screen: pg.Surface = pg.display.set_mode(
             flags=pg.FULLSCREEN
         )
+
+        # Start of the three-second timeout display, if one is active.
         self.timeout_started_at: float | None = None
 
         # Background.
@@ -70,10 +88,6 @@ class PacManApp:
         self.active_level_layout: list[list[str]] = []
         self.block: pg.Surface = load_trans_image(f'{IMAGES}/level-block.gif')
         self.block_pos: list[list[tuple[int, int]]] = []
-        self.waka: pg.Surface = load_trans_image(f'{IMAGES}/waka-sprite.png')
-        self.ms_pellet: pg.Surface = load_trans_image(
-            f'{IMAGES}/ms-pellet-sprite.png'
-        )
 
         # Visual movement is independent of the logical maze coordinates.
         self.visual_move_start: tuple[int, int] | None = None
@@ -81,6 +95,23 @@ class PacManApp:
         self.visual_move_started: float = 0.0
         self.visual_move_duration: float = 0.12
         self.cheat_mode = CheatMode()
+
+        # Keep keyboard bindings together so arrows and WASD behave alike.
+        self.key_map: dict[int, Direction] = {
+            pg.K_UP: Direction.NORTH,
+            pg.K_w: Direction.NORTH,
+            pg.K_DOWN: Direction.SOUTH,
+            pg.K_s: Direction.SOUTH,
+            pg.K_RIGHT: Direction.EAST,
+            pg.K_d: Direction.EAST,
+            pg.K_LEFT: Direction.WEST,
+            pg.K_a: Direction.WEST
+        }
+
+        # HUD resources introduced by the UI branch.
+        self.font: pg.font.Font = pg.font.Font(
+            "src/pacman/app/assets/PressStart2P-Regular.ttf", 40)
+        self.level_bg: pg.Surface = load_trans_image(f'{IMAGES}/level-bg.png')
 
     @property
     def bg_pos(self) -> tuple[int, int]:
@@ -96,10 +127,20 @@ class PacManApp:
         )
         return (bg_x, bg_y)
 
+    @property
+    def timer(self) -> pg.Surface | None:
+        """Render the remaining level time for the HUD, if available."""
+        if self.active_level is None:
+            return None
+        return self.font.render(
+            str(self.active_level.remaining_time),
+            True,
+            color='white'
+            )
+
     def _get_active_level_layout(self) -> list[list[str]]:
         if self.active_level is None:
             return []
-
         width: int = self.active_level.maze.width
         height: int = self.active_level.maze.height
         maze_lst: list = [self.interchange_list_element(
@@ -140,34 +181,25 @@ class PacManApp:
         self, output: list[list[str]], width: int
     ) -> list[list[str]]:
         """Draw maze passages using the same rules as player movement."""
-
         if self.active_level is None:
             return output
-
         maze = self.active_level.maze
-
         for i, row in enumerate(output):
             if i % 2 == 0:
                 output[i] = ['wall'] * (width * 2 + 1)
-
         for i, row in enumerate(output):
             for j, cell in enumerate(row):
                 if type(cell) is not Wall:
                     continue
-
                 position = ((j - 1) // 2, (i - 1) // 2)
-
                 if position in maze.reserved_positions:
+                    output[i][j] = 'wall'
                     continue
-
                 output[i][j] = 'path'
-
                 if maze.can_move(position, Direction.EAST):
                     output[i][j + 1] = 'path'
-
                 if maze.can_move(position, Direction.SOUTH):
                     output[i + 1][j] = 'path'
-
         return output
 
     def interchange_list_element(
@@ -270,7 +302,6 @@ class PacManApp:
                     ):
                         ghost_accumulated_time = 0.0
                         break
-
             elif (
                 self.state == AppState.PAUSED
                 or (
@@ -278,9 +309,11 @@ class PacManApp:
                     and self.state == AppState.PLAYING
                 )
             ):
+
                 # Preserve partial seconds while paused or resuming.
                 pass
             else:
+
                 # Reset both timers when leaving gameplay.
                 accumulated_time = 0.0
                 ghost_accumulated_time = 0.0
@@ -293,6 +326,7 @@ class PacManApp:
             elif self.state == AppState.PAUSED:
                 self._run_pause_menu()
             elif self.state == AppState.TIMEOUT:
+
                 # Show the level until the timeout delay expires.
                 if (
                     self.timeout_started_at is not None
@@ -312,6 +346,7 @@ class PacManApp:
             elif self.state == AppState.INSTRUCTIONS:
                 self._run_instructions()
             pg.display.flip()
+
             # Limit the application to approximately 60 FPS.
             iter_end: float = time.time()
             time.sleep(
@@ -323,6 +358,7 @@ class PacManApp:
 
     def change_state(self, new_state: AppState) -> None:
         """Change the current application state."""
+
         # Keep all application state transitions in one place.
         self.state = new_state
 
@@ -341,10 +377,12 @@ class PacManApp:
 
     def stop(self) -> None:
         """Stop the Pac-Man application."""
+
         # End the main application loop cleanly.
         self.running = False
 
     def _get_events(self) -> None:
+        """Dispatch UI choices and gameplay movement from Pygame events."""
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 self.stop()
@@ -363,16 +401,12 @@ class PacManApp:
                 )
                 if char_state is not None:
                     self._handle_char_select_action(char_state)
-            elif self.state == AppState.PLAYING and event.type == pg.KEYDOWN:
+            elif (self.state == AppState.PLAYING
+                  and event.type == pg.KEYDOWN
+                  and event.key in self.key_map):
+
                 # Route keyboard input through the tested maze-aware movement.
-                if event.key == pg.K_UP:
-                    self.move_player(Direction.NORTH)
-                elif event.key == pg.K_DOWN:
-                    self.move_player(Direction.SOUTH)
-                elif event.key == pg.K_LEFT:
-                    self.move_player(Direction.WEST)
-                elif event.key == pg.K_RIGHT:
-                    self.move_player(Direction.EAST)
+                self.move_player(self.key_map[event.key])
 
     def _load_level(
         self,
@@ -380,12 +414,21 @@ class PacManApp:
         seed: int,
     ) -> None:
         """Create and prepare a level using its configuration and maze seed."""
-        # Create the level using the configuration and seed supplied.
+
+        # All game starts, level advances and retries use this single path.
+        # The UI must choose a character before any level can be loaded.
+        if self.queen_chosen is None:
+            raise ValueError(
+                'Cannot create a level without a selected character.'
+            )
+
+        # Pass the selected character to the shared level factory.
         self.active_level = create_level(
             config=level_config,
             seed=seed,
             time_limit=self.config.level_max_time,
             pacgum_count=self.config.pacgum,
+            player_sprite=self.queen_chosen,
         )
 
         # Rebuild the visual maze layout and screen coordinates.
@@ -408,6 +451,7 @@ class PacManApp:
             lives=self.config.lives,
             current_level=1,
         )
+
         # Build the first playable level and its active game state.
         first_level_config = self.config.levels[0]
         self._load_level(
@@ -419,6 +463,7 @@ class PacManApp:
         self.change_state(AppState.PLAYING)
 
     def _load_bg(self) -> None:
+        """Advance loading-screen background frames."""
         frame: pg.Surface | None = next(
             self.frame_gen,
             None
@@ -434,11 +479,12 @@ class PacManApp:
 
     def move_player(self, direction: Direction) -> bool:
         """Move the active player in the requested direction."""
+
         # Gameplay movement requires both an active level and run-wide state.
         if self.active_level is None or self.game_state is None:
             return False
 
-        # Delegate movement to the Player and stop if the maze blocks the move.
+        # Delegate movement to Player; stop if the maze blocks the move.
         level = self.active_level
         previous_position = level.player.position
         moved = level.player.move(
@@ -452,6 +498,7 @@ class PacManApp:
         self.visual_move_start = previous_position
         self.visual_move_end = level.player.position
         self.visual_move_started = time.monotonic()
+
         # Check the player's new position and remove any pacgum found there.
         collected_pacgum = self.active_level.collect_pacgum(
             self.active_level.player.position
@@ -484,18 +531,22 @@ class PacManApp:
 
     def resolve_ghost_collisions(self) -> None:
         """Apply the consequences of ghosts colliding with the player."""
+
         # Collision handling requires an active level and game state.
         if self.active_level is None or self.game_state is None:
             return
+
         # Nothing to resolve if no ghost shares the player's position.
         colliding_ghosts = self.active_level.check_ghost_collision()
         if not colliding_ghosts:
             return
+
         # An enraged ghost takes priority over frightened ghosts.
         if any(
             ghost.state == GhostState.ENRAGED
             for ghost in colliding_ghosts
         ):
+
             # Ignore enraged collisions while invincible.
             if self.cheat_mode.invincible:
                 return
@@ -504,8 +555,8 @@ class PacManApp:
                 self.change_state(AppState.GAME_OVER)
             else:
                 self.active_level.reset_positions()
-                self.visual_move_start = None
-                self.visual_move_end = None
+            self.visual_move_start = None
+            self.visual_move_end = None
             return
 
         # Eat frightened ghosts and award points for each successful capture.
@@ -542,29 +593,25 @@ class PacManApp:
         self._load_level(
             level_config=next_level_config,
             seed=next_level_seed,
+
         )
 
     def _finish_timeout(self) -> None:
         """Resolve timeout and restart the level or end the game."""
         if self.game_state is None:
             return
-
         self.timeout_started_at = None
-
         self.game_state.lives -= 1
         if self.game_state.lives == 0:
             self.change_state(AppState.GAME_OVER)
             return
-
         current_level_config = self.config.levels[
             self.game_state.current_level - 1
         ]
-
         self._load_level(
             level_config=current_level_config,
             seed=randint(0, 2**31 - 1),
         )
-
         self.change_state(AppState.PLAYING)
 
     def _handle_main_menu_action(
@@ -572,6 +619,7 @@ class PacManApp:
         action: MainMenuAction,
     ) -> None:
         """Handle an action selected from the main menu."""
+
         # Translate UI choices into application behaviour.
         if action == MainMenuAction.START_GAME:
             self.change_state(AppState.CHAR_SELECT)
@@ -602,6 +650,7 @@ class PacManApp:
 
     def _run_main_menu(self) -> None:
         """Handle the main menu application state."""
+
         # Main menu input and presentation will connect here.
         mouse: tuple[int, int] = pg.mouse.get_pos()
         now: float = time.time() * 1000
@@ -640,19 +689,92 @@ class PacManApp:
             return
 
         # Draw the current maze, then the selected player sprite.
-        self.screen.fill(color="black")
+        self.screen.blit(self.level_bg, self.bg_pos)
         for i, row in enumerate(self.active_level_layout):
             for j, col in enumerate(row):
                 if col == 'wall':
                     self.screen.blit(self.block, self.block_pos[i][j])
-        # Map logical maze cells onto the expanded visual grid.
-        player_x, player_y = self.active_level.player.position
-        target = self.block_pos[player_y * 2 + 1][player_x * 2 + 1]
-        draw_x, draw_y = target
 
+        # Each direction maps to the character-specific sprite chosen in UI.
+        direction: Direction = self.active_level.player.direction
+        queen: pg.Surface = (
+            self.active_level.player.sprite_path[direction]
+            )
+        dim: tuple[int, int] = (queen.get_width(), queen.get_height())
+        self.screen.blit(
+            self.active_level.player.sprite_path[direction],
+            self.pos(self.active_level.player.position, dim)
+            )
+
+        # Ghost sprites follow the same cell-centering coordinates.
+        for ghost in self.active_level.ghosts:
+            direction = ghost.direction
+            dim = (ghost.sprite[direction].get_width(),
+                   ghost.sprite[direction].get_height())
+            self.screen.blit(
+                ghost.sprite[direction],
+                self.pos(ghost.position, dim),
+            )
+
+        # The timer can be absent outside a loaded level.
+        timer_surface = self.timer
+        if timer_surface is not None:
+            x = self.screen.get_width() - timer_surface.get_width() - 10
+            self.screen.blit(timer_surface, (x, 10))
+
+        # UI branch stores (pacgum type, surface) per logical cell.
+        for position, pacgum in self.active_level.pacgums.items():
+            dim = (pacgum[1].get_width(), pacgum[1].get_height())
+            self.screen.blit(pacgum[1], self.pos(position, dim))
+
+    def _run_pause_menu(self) -> None:
+        """Handle the paused application state."""
+
+        # Pause menu input and presentation will connect here.
+        pass
+
+    def _run_game_over(self) -> None:
+        """Handle the game-over application state."""
+
+        # Game-over presentation and transition will connect here.
+        pass
+
+    def _run_victory(self) -> None:
+        """Handle the victory application state."""
+
+        # Victory presentation and transition will connect here.
+        pass
+
+    def _run_name_entry(self) -> None:
+        """Handle highscore name entry."""
+
+        # Highscore name input will connect to the UI layer here.
+        pass
+
+    def _run_highscores(self) -> None:
+        """Handle the highscore application state."""
+
+        # Highscore presentation will connect to the UI layer here.
+        pass
+
+    def _run_instructions(self) -> None:
+        """Handle the instructions application state."""
+
+        # Instruction presentation will connect to the UI layer here.
+        pass
+
+    def pos(self,
+            pos: tuple[int, int],
+            dim: tuple[int, int]) -> tuple[int, int]:
+        """Center a sprite in a maze cell, interpolating player movement."""
+
+        # Map logical maze cells onto the expanded visual grid.
+        x, y = pos
+        target = self.block_pos[y * 2 + 1][x * 2 + 1]
+        draw_x, draw_y = target
         if (
             self.visual_move_start is not None
-            and self.visual_move_end == self.active_level.player.position
+            and self.visual_move_end == pos
         ):
             start_x, start_y = self.visual_move_start
             origin = self.block_pos[start_y * 2 + 1][start_x * 2 + 1]
@@ -666,41 +788,9 @@ class PacManApp:
             if progress >= 1.0:
                 self.visual_move_start = None
                 self.visual_move_end = None
-
-        if self.queen_chosen == CharSelectAction.WAKA_WAKA_WANDA:
-            self.screen.blit(self.waka, (draw_x, draw_y))
-        elif self.queen_chosen == CharSelectAction.MS_POWER_PELLET:
-            self.screen.blit(self.ms_pellet, (draw_x, draw_y))
-
-    def _run_pause_menu(self) -> None:
-        """Handle the paused application state."""
-        # Pause menu input and presentation will connect here.
-        pass
-
-    def _run_game_over(self) -> None:
-        """Handle the game-over application state."""
-        # Game-over presentation and transition will connect here.
-        pass
-
-    def _run_victory(self) -> None:
-        """Handle the victory application state."""
-        # Victory presentation and transition will connect here.
-        pass
-
-    def _run_name_entry(self) -> None:
-        """Handle highscore name entry."""
-        # Highscore name input will connect to the UI layer here.
-        pass
-
-    def _run_highscores(self) -> None:
-        """Handle the highscore application state."""
-        # Highscore presentation will connect to the UI layer here.
-        pass
-
-    def _run_instructions(self) -> None:
-        """Handle the instructions application state."""
-        # Instruction presentation will connect to the UI layer here.
-        pass
+        block_x, block_y = self.block.get_width(), self.block.get_height()
+        return (center(block_x, dim[0]) + draw_x,
+                center(block_y, dim[1]) + draw_y)
 
     def __enter__(self) -> "PacManApp":
         """Dunder method for context managers.

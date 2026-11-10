@@ -36,6 +36,13 @@ def create_ghosts(
         ),
     ]
 
+    sprite_paths: dict[GhostIdentity, str] = {
+        GhostIdentity.CLOSET_HYPOCRITE: 'closet-hypocrite',
+        GhostIdentity.EGO_MACHINE: 'ego-machine',
+        GhostIdentity.ORANGE_PUNCHLINE: 'orange-punchline',
+        GhostIdentity.TERF_HAG: 'terf-hag'
+    }
+
     available_positions = reachable_positions - {player_spawn}
     ghosts: list[Ghost] = []
 
@@ -60,6 +67,7 @@ def create_ghosts(
                 spawn_position=spawn_position,
                 identity=identity,
                 spawn_direction=direction,
+                sprite_path=sprite_paths[identity]
             )
         )
 

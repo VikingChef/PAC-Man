@@ -10,8 +10,8 @@
     "levels": [
         {
             "number": 1,
-            "width": 20,
-            "height": 20
+            "width": 15,
+            "height": 15
         },
         {
             "number": 2,

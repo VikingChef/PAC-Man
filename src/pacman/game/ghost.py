@@ -2,9 +2,11 @@
 """Represent Pac-Man ghost identity, state, and physical gameplay data."""
 
 from enum import Enum, auto
+import pygame as pg
 
 from pacman.maze.direction import Direction
 from pacman.maze.maze import Maze
+from pacman.app.actions import load_trans_image, IMAGES
 
 
 RESPAWN_DELAY = 5
@@ -35,6 +37,7 @@ class Ghost:
         spawn_position: tuple[int, int],
         identity: GhostIdentity,
         spawn_direction: Direction,
+        sprite_path: str | None = None,
     ) -> None:
         """Initialize ghost identity, spawn data, and current state."""
 
@@ -46,6 +49,23 @@ class Ghost:
         self.direction = spawn_direction
         self.state = GhostState.ENRAGED
         self.respawn_timer = 0
+        # The game model can be used without artwork in unit tests.
+        # Ghosts created by the factory receive a sprite path for rendering.
+        self.sprite: dict[Direction, pg.Surface] = {}
+        if sprite_path is not None:
+            front = load_trans_image(
+                f"{IMAGES}/ghosts/{sprite_path}-front.png"
+            )
+            self.sprite = {
+                Direction.NORTH: front,
+                Direction.SOUTH: front,
+                Direction.WEST: load_trans_image(
+                    f"{IMAGES}/ghosts/{sprite_path}-left.png"
+                ),
+                Direction.EAST: load_trans_image(
+                    f"{IMAGES}/ghosts/{sprite_path}-right.png"
+                ),
+            }
 
     def reset(self) -> None:
         """Restore the ghost to its initial spawn state."""

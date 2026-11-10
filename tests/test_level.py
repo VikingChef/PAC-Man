@@ -1,5 +1,7 @@
 """Tests for active Pac-Man level state and timer behaviour."""
 
+import pygame as pg
+
 from pacman.config.models import LevelConfig
 from pacman.game.ghost_factory import create_ghosts
 from pacman.game.ghost import GhostState
@@ -190,7 +192,7 @@ def test_collect_pacgum_removes_and_returns_pacgum() -> None:
         ghosts=[],
         time_limit=90,
         pacgums={
-            (0, 0): PacgumType.PACGUM,
+            (0, 0): (PacgumType.PACGUM, pg.Surface((1, 1))),
         },
     )
     # Collect the pacgum from its known position.
@@ -248,7 +250,7 @@ def test_level_is_not_complete_with_pacgums() -> None:
         ghosts=[],
         time_limit=90,
         pacgums={
-            (0, 0): PacgumType.PACGUM,
+            (0, 0): (PacgumType.PACGUM, pg.Surface((1, 1))),
         },
     )
     assert level.is_complete is False
@@ -777,7 +779,7 @@ def test_reset_positions_preserves_level_progress() -> None:
         player=player,
         ghosts=ghosts,
         time_limit=90,
-        pacgums={(11, 10): PacgumType.PACGUM},
+        pacgums={(11, 10): (PacgumType.PACGUM, pg.Surface((1, 1)))},
     )
     # Simulate movement, collecting a pacgum, and time passing.
     player.move(maze, Direction.EAST)

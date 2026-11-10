@@ -1,5 +1,8 @@
 """Represent Pac-Man's player state and movement behaviour."""
 
+import pygame as pg
+
+from pacman.app.actions import IMAGES, load_trans_image
 from pacman.maze.direction import Direction
 from pacman.maze.maze import Maze
 
@@ -11,14 +14,32 @@ class Player:
         self,
         spawn_position: tuple[int, int],
         spawn_direction: Direction,
+        path: str | None = None,
     ) -> None:
-        """Initialize spawn state and current player state."""
+        """Initialize spawn state and optional character artwork."""
 
         # Keep permanent spawn state separate from mutable current state.
         self.spawn_position = spawn_position
         self.spawn_direction = spawn_direction
         self.position = spawn_position
         self.direction = spawn_direction
+
+        # Gameplay tests can construct a player without initializing graphics.
+        # The level factory supplies a path for players drawn by the UI.
+        self.sprite_path: dict[Direction, pg.Surface] = {}
+
+        if path is not None:
+            # North and south share the front-facing artwork.
+            front = load_trans_image(f"{IMAGES}/player/{path}-front.png")
+            right = load_trans_image(f"{IMAGES}/player/{path}-right.png")
+            left = load_trans_image(f"{IMAGES}/player/{path}-left.png")
+
+            self.sprite_path = {
+                Direction.NORTH: front,
+                Direction.SOUTH: front,
+                Direction.EAST: right,
+                Direction.WEST: left,
+            }
 
     def reset(self) -> None:
         """Reset the player to its spawn position and direction."""

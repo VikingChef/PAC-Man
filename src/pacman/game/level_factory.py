@@ -16,6 +16,7 @@ from pacman.game.player import Player
 from pacman.maze.adapter import adapt_maze
 from pacman.maze.direction import Direction
 from pacman.maze.maze import Maze
+from pacman.app.actions import CharSelectAction
 
 
 def find_player_spawn(
@@ -69,6 +70,7 @@ def create_level(
     seed: int,
     time_limit: int,
     pacgum_count: int,
+    player_sprite: CharSelectAction
 ) -> Level:
     """Create a playable level from configuration and maze settings."""
 
@@ -101,10 +103,18 @@ def create_level(
     rng = Random(seed)
     spawn_direction = rng.choice(list(Direction))
 
-    player = Player(
-        spawn_position=spawn_position,
-        spawn_direction=spawn_direction,
-    )
+    if player_sprite == CharSelectAction.MS_POWER_PELLET:
+        player = Player(
+            spawn_position=spawn_position,
+            spawn_direction=spawn_direction,
+            path='ms-pellet'
+        )
+    elif player_sprite == CharSelectAction.WAKA_WAKA_WANDA:
+        player = Player(
+            spawn_position=spawn_position,
+            spawn_direction=spawn_direction,
+            path='waka'
+        )
 
     # Place all required pacgums inside the same reachable region.
     pacgums = pacgum_factory(
