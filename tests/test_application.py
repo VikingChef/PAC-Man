@@ -9,6 +9,7 @@ from pacman.config.models import GameConfig, LevelConfig
 from pacman.maze.direction import Direction
 from pacman.maze.maze import Maze
 from pacman.maze.wall import Wall
+from pacman.game.cheat_mode import CheatMode
 from pacman.game.ghost import Ghost, GhostIdentity, GhostState
 from pacman.game.level import Level
 from pacman.game.player import Player
@@ -171,108 +172,6 @@ def test_move_player_moves_active_player() -> None:
     assert player.direction == direction
 
 
-def test_player_movement_into_enraged_ghost_loses_life() -> None:
-    """Verify that moving into an enraged ghost costs one life."""
-
-    app = PacManApp(_test_config())
-    app.start_new_game()
-
-    assert app.active_level is not None
-    assert app.game_state is not None
-
-    level = app.active_level
-    player = level.player
-    ghost = level.ghosts[0]
-
-    # Find a legal movement direction from Pac-Man's starting position.
-    direction = next(
-        direction
-        for direction in Direction
-        if level.maze.can_move(player.position, direction)
-    )
-
-    # Calculate the cell Pac-Man will enter.
-    dx, dy = direction.value
-    x, y = player.position
-    destination = (x + dx, y + dy)
-
-    # Place an enraged ghost directly in Pac-Man's path.
-    ghost.position = destination
-    ghost.state = GhostState.ENRAGED
-
-    # Ensure the destination contains no super-pacgum.
-    level.pacgums[destination] = PacgumType.PACGUM
-
-    # Moving into the ghost should trigger collision handling.
-    moved = app.move_player(direction)
-
-    # Movement succeeds, but Pac-Man loses one life.
-    assert moved is True
-    assert app.game_state.lives == 2
-    assert app.state == AppState.PLAYING
-
-    # Surviving the collision resets both characters.
-    assert player.position == player.spawn_position
-    assert ghost.position == ghost.spawn_position
-    assert ghost.state == GhostState.ENRAGED
-
-
-def test_super_pacgum_activates_before_ghost_collision() -> None:
-    """Verify a super-pacgum makes a ghost edible before collision."""
-
-    app = PacManApp(_test_config())
-    app.start_new_game()
-
-    assert app.active_level is not None
-    assert app.game_state is not None
-
-    level = app.active_level
-    player = level.player
-    ghost = level.ghosts[0]
-
-    # Find a legal direction from Pac-Man's starting position.
-    direction = next(
-        direction
-        for direction in Direction
-        if level.maze.can_move(player.position, direction)
-    )
-
-    # Identify the cell Pac-Man will enter.
-    dx, dy = direction.value
-    x, y = player.position
-    destination = (x + dx, y + dy)
-
-    # Place an enraged ghost and a super-pacgum on the same cell.
-    ghost.position = destination
-    ghost.state = GhostState.ENRAGED
-    level.pacgums[destination] = PacgumType.SUPER_PACGUM
-
-    # Moving onto the cell must activate the power-up first.
-    moved = app.move_player(direction)
-
-    assert moved is True
-
-    # Pac-Man receives points for both the super-pacgum and ghost.
-    expected_score = (
-        app.config.points_per_super_pacgum
-        + app.config.points_per_ghost
-    )
-
-    assert app.game_state.score == expected_score
-
-    # Pac-Man survives and the ghost enters its respawn state.
-    assert app.game_state.lives == 3
-    assert app.state == AppState.PLAYING
-    assert ghost.state == GhostState.EATEN
-    assert ghost.respawn_timer == 5
-
-    # The power-up remains active.
-    assert level.frightened_timer == 6
-
-    # The collected super-pacgum is removed.
-    assert destination not in level.pacgums
-
-
 def test_advance_level_creates_next_level() -> None:
     """Verify that advancing creates the next configured level."""
     # Extend the standard test configuration with a second playable level.
@@ -379,74 +278,6 @@ def test_game_loop_advances_timers(
     # Only two complete seconds should have elapsed.
     assert level.remaining_time == 88
     assert level.frightened_timer == 4
-
-
-def test_ghost_movement_collision_loses_one_life(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Verify ghost movement causes one collision and stops further moves."""
-
-    app = PacManApp(_test_config())
-    app.start_new_game()
-
-    assert app.active_level is not None
-    assert app.game_state is not None
-
-    level = app.active_level
-    ghost = level.ghosts[0]
-    player = level.player
-
-    movement_calls = 0
-
-    def simulate_ghost_movement() -> None:
-        """Simulate a ghost reaching Pac-Man's position."""
-        nonlocal movement_calls
-
-        movement_calls += 1
-        ghost.position = player.position
-
-    # Replace ghost movement, but keep real collision handling.
-    monkeypatch.setattr(
-        level,
-        "move_ghosts",
-        simulate_ghost_movement,
-    )
-
-    # Simulate enough elapsed time for several ghost movements.
-    ghost_interval = level.config.ghost_move_interval_ms / 1000
-    timestamps = iter([0.0, ghost_interval * 3 + 0.01])
-
-    fake_time = SimpleNamespace(
-        monotonic=lambda: next(timestamps),
-        time=lambda: 0.0,
-        sleep=lambda seconds: None,
-    )
-
-    monkeypatch.setattr(application_module, "time", fake_time)
-    monkeypatch.setattr(app, "_load_bg", lambda: None)
-    monkeypatch.setattr(app, "_get_events", lambda: None)
-    monkeypatch.setattr(
-        application_module.pg.display,
-        "flip",
-        lambda: None,
-    )
-
-    # Run one frame, then stop the application loop.
-    monkeypatch.setattr(app, "_run_game", app.stop)
-
-    app.run()
-
-    # The collision costs exactly one life.
-    assert app.game_state.lives == 2
-    assert app.state == AppState.PLAYING
-
-    # Characters return to their spawn positions.
-    assert player.position == player.spawn_position
-    assert ghost.position == ghost.spawn_position
-
-    # Despite enough elapsed time for three movements,
-    # collision handling stopped the movement loop after one.
-    assert movement_calls == 1
 
 
 def test_game_loop_preserves_time_during_pause(
@@ -585,6 +416,7 @@ def create_collision_test_app(
     # Avoid initializing a Pygame window; the resolver does not need one.
     app = PacManApp.__new__(PacManApp)
     app.config = _test_config()
+    app.cheat_mode = CheatMode()
     app.game_state = GameState(score=0, lives=lives, current_level=1)
     app.state = AppState.PLAYING
     app.visual_move_start = None
@@ -690,3 +522,262 @@ def test_final_life_collision_ends_game() -> None:
     assert app.game_state is not None
     assert app.game_state.lives == 0
     assert app.state == AppState.GAME_OVER
+
+
+def test_player_movement_into_enraged_ghost_loses_life() -> None:
+    """Verify that moving into an enraged ghost costs one life."""
+    app = PacManApp(_test_config())
+    app.start_new_game()
+    assert app.active_level is not None
+    assert app.game_state is not None
+
+    level = app.active_level
+    player = level.player
+    ghost = level.ghosts[0]
+    # Find a legal movement direction and place a ghost in that cell.
+    direction = next(
+        direction for direction in Direction
+        if level.maze.can_move(player.position, direction)
+    )
+    dx, dy = direction.value
+    x, y = player.position
+    destination = (x + dx, y + dy)
+    ghost.position = destination
+    ghost.state = GhostState.ENRAGED
+    # Prevent a super-pacgum from frightening the ghost first.
+    level.pacgums[destination] = PacgumType.PACGUM
+
+    moved = app.move_player(direction)
+    assert moved is True
+    assert app.game_state.lives == 2
+    assert app.state == AppState.PLAYING
+    assert player.position == player.spawn_position
+    assert ghost.position == ghost.spawn_position
+    assert ghost.state == GhostState.ENRAGED
+
+
+def test_super_pacgum_activates_before_ghost_collision() -> None:
+    """Verify a super-pacgum makes a ghost edible before collision."""
+    app = PacManApp(_test_config())
+    app.start_new_game()
+    assert app.active_level is not None
+    assert app.game_state is not None
+
+    level = app.active_level
+    player = level.player
+    ghost = level.ghosts[0]
+    direction = next(
+        direction for direction in Direction
+        if level.maze.can_move(player.position, direction)
+    )
+    dx, dy = direction.value
+    x, y = player.position
+    destination = (x + dx, y + dy)
+    # The super-pacgum must be collected before resolving the ghost collision.
+    ghost.position = destination
+    ghost.state = GhostState.ENRAGED
+    level.pacgums[destination] = PacgumType.SUPER_PACGUM
+
+    moved = app.move_player(direction)
+    assert moved is True
+    expected_score = (
+        app.config.points_per_super_pacgum
+        + app.config.points_per_ghost
+    )
+    assert app.game_state.score == expected_score
+    assert app.game_state.lives == 3
+    assert app.state == AppState.PLAYING
+    assert ghost.state == GhostState.EATEN
+    assert ghost.respawn_timer == 5
+    assert level.frightened_timer == 6
+    assert destination not in level.pacgums
+
+
+def test_game_loop_enters_timeout_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify that timer expiry stops gameplay and ghost movement."""
+    app = PacManApp(_test_config())
+    app.start_new_game()
+    assert app.active_level is not None
+    level = app.active_level
+    level.remaining_time = 1
+
+    timestamps = iter([0.0, 1.1, 1.2])
+    fake_time = SimpleNamespace(
+        monotonic=lambda: next(timestamps),
+        time=lambda: 0.0,
+        sleep=lambda seconds: None,
+    )
+    monkeypatch.setattr(application_module, "time", fake_time)
+    monkeypatch.setattr(app, "_load_bg", lambda: None)
+    monkeypatch.setattr(app, "_run_game", lambda: None)
+    monkeypatch.setattr(application_module.pg.display, "flip", lambda: None)
+
+    ghost_moves = 0
+
+    def track_ghost_movement() -> None:
+        """Count ghost movement calls without moving them."""
+        nonlocal ghost_moves
+        ghost_moves += 1
+
+    monkeypatch.setattr(level, "move_ghosts", track_ghost_movement)
+    frames = 0
+
+    def simulate_events() -> None:
+        """Stop the application after observing timeout."""
+        nonlocal frames
+        frames += 1
+        if frames == 2:
+            app.stop()
+
+    monkeypatch.setattr(app, "_get_events", simulate_events)
+    app.run()
+    assert level.remaining_time == 0
+    assert app.state == AppState.TIMEOUT
+    assert ghost_moves == 0
+
+
+def test_ghost_movement_collision_loses_one_life(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify ghost movement causes one collision and stops further moves."""
+    app = PacManApp(_test_config())
+    app.start_new_game()
+    assert app.active_level is not None
+    assert app.game_state is not None
+    level = app.active_level
+    ghost = level.ghosts[0]
+    player = level.player
+    movement_calls = 0
+
+    def simulate_ghost_movement() -> None:
+        """Simulate a ghost reaching Pac-Man's position."""
+        nonlocal movement_calls
+        movement_calls += 1
+        ghost.position = player.position
+
+    monkeypatch.setattr(level, "move_ghosts", simulate_ghost_movement)
+    ghost_interval = level.config.ghost_move_interval_ms / 1000
+    timestamps = iter([0.0, ghost_interval * 3 + 0.01])
+    fake_time = SimpleNamespace(
+        monotonic=lambda: next(timestamps),
+        time=lambda: 0.0,
+        sleep=lambda seconds: None,
+    )
+    monkeypatch.setattr(application_module, "time", fake_time)
+    monkeypatch.setattr(app, "_load_bg", lambda: None)
+    monkeypatch.setattr(app, "_get_events", lambda: None)
+    monkeypatch.setattr(application_module.pg.display, "flip", lambda: None)
+    monkeypatch.setattr(app, "_run_game", app.stop)
+    app.run()
+
+    assert app.game_state.lives == 2
+    assert app.state == AppState.PLAYING
+    assert player.position == player.spawn_position
+    assert ghost.position == ghost.spawn_position
+    assert movement_calls == 1
+
+
+def test_timeout_deducts_one_life() -> None:
+    """Verify that timeout costs one life and restarts gameplay."""
+    app = PacManApp(_test_config())
+    app.start_new_game()
+    assert app.game_state is not None
+    starting_lives = app.game_state.lives
+    app._finish_timeout()
+    assert app.game_state.lives == starting_lives - 1
+    assert app.state == AppState.PLAYING
+
+
+def test_timeout_preserves_score_and_level() -> None:
+    """Verify that timeout restarts the same level without losing score."""
+    app = PacManApp(_test_config())
+    app.start_new_game()
+    assert app.game_state is not None
+    app.game_state.score = 500
+    original_level = app.active_level
+    app._finish_timeout()
+    assert app.game_state.score == 500
+    assert app.game_state.current_level == 1
+    assert app.active_level is not original_level
+
+
+def test_timeout_on_last_life_ends_game() -> None:
+    """Verify that losing the final life ends the game."""
+    app = PacManApp(_test_config())
+    app.start_new_game()
+    assert app.game_state is not None
+    original_level = app.active_level
+    app.game_state.lives = 1
+    app._finish_timeout()
+    assert app.game_state.lives == 0
+    assert app.state == AppState.GAME_OVER
+    assert app.active_level is original_level
+
+
+def test_timeout_waits_three_seconds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify that timeout waits three seconds before deducting a life."""
+    app = PacManApp(_test_config())
+    app.start_new_game()
+    assert app.game_state is not None
+    starting_lives = app.game_state.lives
+    app.timeout_started_at = 10.0
+    app.change_state(AppState.TIMEOUT)
+    timestamps = iter([10.0, 12.9, 13.0])
+    fake_time = SimpleNamespace(
+        monotonic=lambda: next(timestamps),
+        time=lambda: 0.0,
+        sleep=lambda seconds: None,
+    )
+    monkeypatch.setattr(application_module, "time", fake_time)
+    monkeypatch.setattr(app, "_load_bg", lambda: None)
+    monkeypatch.setattr(app, "_run_game", lambda: None)
+    monkeypatch.setattr(application_module.pg.display, "flip", lambda: None)
+    frames = 0
+
+    def simulate_events() -> None:
+        """Check the delay, then stop after the second frame."""
+        nonlocal frames
+        frames += 1
+        if frames == 2:
+            assert app.state == AppState.TIMEOUT
+            assert app.game_state is not None
+            assert app.game_state.lives == starting_lives
+            app.stop()
+
+    monkeypatch.setattr(app, "_get_events", simulate_events)
+    app.run()
+    assert app.game_state.lives == starting_lives - 1
+    assert app.state == AppState.PLAYING
+    assert app.timeout_started_at is None
+
+
+def test_new_game_resets_cheats() -> None:
+    """Verify that a new game resets cheat settings and history."""
+    app = PacManApp(_test_config())
+    app.start_new_game()
+    app.cheat_mode.toggle_invincibility()
+    app.cheat_mode.toggle_disco_enabled()
+    assert app.cheat_mode.invincible is True
+    assert app.cheat_mode.disco_enabled is True
+    assert app.cheat_mode.cheats_used is True
+    app.start_new_game()
+    assert app.cheat_mode.invincible is False
+    assert app.cheat_mode.disco_enabled is False
+    assert app.cheat_mode.cheats_used is False
+    assert app.cheat_mode.being_fabulous is False
+
+
+def test_invincibility_prevents_life_loss() -> None:
+    """Verify that invincibility protects against enraged ghosts."""
+    app = create_collision_test_app([GhostState.ENRAGED])
+    # Enable invincibility on the fully initialized test helper.
+    app.cheat_mode.toggle_invincibility()
+    assert app.game_state is not None
+    starting_lives = app.game_state.lives
+    app.resolve_ghost_collisions()
+    assert app.game_state.lives == starting_lives
+    assert app.state == AppState.PLAYING

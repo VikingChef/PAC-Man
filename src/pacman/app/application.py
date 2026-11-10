@@ -9,7 +9,7 @@ import pygame as pg
 from pacman.app.actions import CharacterSelect, CharSelectAction
 from pacman.app.actions import LoadingBar, MainMenu, MainMenuAction, center
 from pacman.app.actions import load_trans_image, IMAGES
-from pacman.config.models import GameConfig
+from pacman.config.models import GameConfig, LevelConfig
 from pacman.game.ghost import GhostState
 from pacman.game.level import Level
 from pacman.game.level_factory import create_level
@@ -17,6 +17,7 @@ from pacman.game.pacgum import PacgumType
 from pacman.game.state import GameState
 from pacman.maze.direction import Direction
 from pacman.maze.wall import Wall
+from pacman.game.cheat_mode import CheatMode
 
 
 class AppState(Enum):
@@ -25,6 +26,7 @@ class AppState(Enum):
     MAIN_MENU = auto()
     PLAYING = auto()
     PAUSED = auto()
+    TIMEOUT = auto()
     GAME_OVER = auto()
     VICTORY = auto()
     NAME_ENTRY = auto()
@@ -38,6 +40,7 @@ class PacManApp:
 
     def __init__(self, config: GameConfig) -> None:
         """Create the application with validated configuration data."""
+
         # Store the validated configuration for the whole application.
         self.config = config
         # Start the application in the main menu.
@@ -53,6 +56,8 @@ class PacManApp:
         self.screen: pg.Surface = pg.display.set_mode(
             flags=pg.FULLSCREEN
         )
+        self.timeout_started_at: float | None = None
+
         # Background.
         path: str = "./src/pacman/app/images/bg-frames"
         self.bg_files: int = len(os.listdir(path))
@@ -69,11 +74,13 @@ class PacManApp:
         self.ms_pellet: pg.Surface = load_trans_image(
             f'{IMAGES}/ms-pellet-sprite.png'
         )
+
         # Visual movement is independent of the logical maze coordinates.
         self.visual_move_start: tuple[int, int] | None = None
         self.visual_move_end: tuple[int, int] | None = None
         self.visual_move_started: float = 0.0
         self.visual_move_duration: float = 0.12
+        self.cheat_mode = CheatMode()
 
     @property
     def bg_pos(self) -> tuple[int, int]:
@@ -230,6 +237,12 @@ class PacManApp:
                     self.active_level.tick(1)
                     accumulated_time -= 1.0
 
+                    # Handle level timeout.
+                    if self.active_level.is_time_up:
+                        self.timeout_started_at = current_time
+                        self.change_state(AppState.TIMEOUT)
+                        break
+
                 # Accumulate time independently for ghost movement.
                 ghost_accumulated_time += elapsed_time
 
@@ -239,7 +252,10 @@ class PacManApp:
                 )
 
                 # Move ghosts once for each completed movement interval.
-                while ghost_accumulated_time >= ghost_interval:
+                while (
+                    self.state == AppState.PLAYING
+                    and ghost_accumulated_time >= ghost_interval
+                ):
                     self.active_level.move_ghosts()
                     ghost_accumulated_time -= ghost_interval
 
@@ -276,6 +292,15 @@ class PacManApp:
                 self._run_game()
             elif self.state == AppState.PAUSED:
                 self._run_pause_menu()
+            elif self.state == AppState.TIMEOUT:
+                # Show the level until the timeout delay expires.
+                if (
+                    self.timeout_started_at is not None
+                    and current_time - self.timeout_started_at >= 3.0
+                ):
+                    self._finish_timeout()
+                else:
+                    self._run_game()
             elif self.state == AppState.GAME_OVER:
                 self._run_game_over()
             elif self.state == AppState.VICTORY:
@@ -349,8 +374,34 @@ class PacManApp:
                 elif event.key == pg.K_RIGHT:
                     self.move_player(Direction.EAST)
 
+    def _load_level(
+        self,
+        level_config: LevelConfig,
+        seed: int,
+    ) -> None:
+        """Create and prepare a level using its configuration and maze seed."""
+        # Create the level using the configuration and seed supplied.
+        self.active_level = create_level(
+            config=level_config,
+            seed=seed,
+            time_limit=self.config.level_max_time,
+            pacgum_count=self.config.pacgum,
+        )
+
+        # Rebuild the visual maze layout and screen coordinates.
+        self.active_level_layout = self._get_active_level_layout()
+        self.block_pos = self._get_block_pos()
+
+        # Clear any animation left over from the previous level.
+        self.visual_move_start = None
+        self.visual_move_end = None
+
     def start_new_game(self) -> None:
         """Create the state for a new Pac-Man game."""
+
+        # Reset cheat settings for the new run.
+        self.cheat_mode = CheatMode()
+
         # Build fresh run-wide state from the validated configuration.
         self.game_state = GameState(
             score=0,
@@ -359,16 +410,11 @@ class PacManApp:
         )
         # Build the first playable level and its active game state.
         first_level_config = self.config.levels[0]
-        self.active_level = create_level(
-            config=first_level_config,
+        self._load_level(
+            level_config=first_level_config,
             seed=self.config.seed,
-            time_limit=self.config.level_max_time,
-            pacgum_count=self.config.pacgum,
         )
-        self.active_level_layout = self._get_active_level_layout()
-        self.block_pos = self._get_block_pos()
-        self.visual_move_start = None
-        self.visual_move_end = None
+
         # Move into gameplay once the new run and level are ready.
         self.change_state(AppState.PLAYING)
 
@@ -450,6 +496,9 @@ class PacManApp:
             ghost.state == GhostState.ENRAGED
             for ghost in colliding_ghosts
         ):
+            # Ignore enraged collisions while invincible.
+            if self.cheat_mode.invincible:
+                return
             self.game_state.lives -= 1
             if self.game_state.lives == 0:
                 self.change_state(AppState.GAME_OVER)
@@ -468,33 +517,55 @@ class PacManApp:
         self,
     ) -> None:
         """Advance the player to the next level."""
+
         # Level progression requires an active run-wide game state.
         if self.game_state is None:
             return
+
         # Completing the final configured level ends the run in victory.
         if self.game_state.current_level >= len(self.config.levels):
             self.change_state(AppState.VICTORY)
             return
+
         # Advance the run-wide level number before selecting its configuration.
         self.game_state.current_level += 1
+
         # Convert the one-based level number to the zero-based config index.
         next_level_config = self.config.levels[
             self.game_state.current_level - 1
         ]
+
         # Later levels use a fresh random seed instead of the fixed first seed.
         next_level_seed = randint(0, 2**31 - 1)
+
         # Replace the current level while preserving run-wide score and lives.
-        self.active_level = create_level(
-            config=next_level_config,
+        self._load_level(
+            level_config=next_level_config,
             seed=next_level_seed,
-            time_limit=self.config.level_max_time,
-            pacgum_count=self.config.pacgum
         )
-        # Refresh rendering coordinates for the newly generated maze.
-        self.active_level_layout = self._get_active_level_layout()
-        self.block_pos = self._get_block_pos()
-        self.visual_move_start = None
-        self.visual_move_end = None
+
+    def _finish_timeout(self) -> None:
+        """Resolve timeout and restart the level or end the game."""
+        if self.game_state is None:
+            return
+
+        self.timeout_started_at = None
+
+        self.game_state.lives -= 1
+        if self.game_state.lives == 0:
+            self.change_state(AppState.GAME_OVER)
+            return
+
+        current_level_config = self.config.levels[
+            self.game_state.current_level - 1
+        ]
+
+        self._load_level(
+            level_config=current_level_config,
+            seed=randint(0, 2**31 - 1),
+        )
+
+        self.change_state(AppState.PLAYING)
 
     def _handle_main_menu_action(
         self,
