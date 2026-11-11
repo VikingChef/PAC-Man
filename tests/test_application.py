@@ -182,27 +182,76 @@ def test_move_player_moves_active_player() -> None:
     assert player.direction == direction
 
 
-def test_advance_level_creates_next_level() -> None:
-    """Verify that advancing creates the next configured level."""
-    # Extend the standard test configuration with a second playable level.
+def test_advance_level_creates_next_level(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify level progression uses a new seed and creates four ghosts."""
+
     config = _test_config()
     config.levels.append(
         LevelConfig(
             number=2,
-            width=21,
-            height=21,
+            width=15,
+            height=15,
         )
     )
-    # Start a game on level one and keep its Level object for comparison.
+
     app = PacManApp(config)
     _start_test_game(app)
+
     first_level = app.active_level
-    # Advance from level one into the next configured level.
+    assert first_level is not None
+
+    # Control the random value so the test is reproducible.
+    next_seed = 123456
+    random_calls: list[tuple[int, int]] = []
+
+    def fake_randint(lower: int, upper: int) -> int:
+        random_calls.append((lower, upper))
+        return next_seed
+
+    monkeypatch.setattr(application_module, "randint", fake_randint)
+
+    # Record the seed passed to the real level factory.
+    original_create_level = application_module.create_level
+    received_seeds: list[int] = []
+
+    def track_create_level(
+        config: LevelConfig,
+        seed: int,
+        time_limit: int,
+        pacgum_count: int,
+        player_sprite: CharSelectAction,
+    ) -> Level:
+        received_seeds.append(seed)
+        return original_create_level(
+            config=config,
+            seed=seed,
+            time_limit=time_limit,
+            pacgum_count=pacgum_count,
+            player_sprite=player_sprite,
+        )
+
+    monkeypatch.setattr(
+        application_module,
+        "create_level",
+        track_create_level,
+    )
+
     app._advance_level()
-    # Progression should update the run state and replace the active Level.
+
     assert app.game_state is not None
     assert app.game_state.current_level == 2
+
+    assert app.active_level is not None
     assert app.active_level is not first_level
+    assert app.active_level.maze.width == 15
+    assert app.active_level.maze.height == 15
+    assert len(app.active_level.ghosts) == 4
+
+    # Verify a new seed was requested and passed to level creation.
+    assert random_calls == [(0, 2**31 - 1)]
+    assert received_seeds == [next_seed]
 
 
 def test_advance_level_reaches_victory_after_final_level() -> None:
