@@ -14,7 +14,7 @@ from pacman.app.actions import CharacterSelect, CharSelectAction
 from pacman.app.actions import LoadingBar, MainMenu, MainMenuAction, center
 from pacman.app.actions import load_trans_image, IMAGES
 from pacman.config.models import GameConfig, LevelConfig
-from pacman.game.ghost import GhostState
+from pacman.game.ghost import GhostState, Ghost
 from pacman.game.level import Level
 from pacman.game.level_factory import create_level
 from pacman.game.pacgum import PacgumType
@@ -94,6 +94,13 @@ class PacManApp:
         self.visual_move_end: tuple[int, int] | None = None
         self.visual_move_started: float = 0.0
         self.visual_move_duration: float = 0.12
+
+        # Track each ghost's movement independently of its logical position.
+        # Each entry stores the starting cell and animation start time.
+        self.ghost_visual_moves: dict[
+            Ghost, tuple[tuple[int, int], float]
+        ] = {}
+
         self.cheat_mode = CheatMode()
 
         # Keep keyboard bindings together so arrows and WASD behave alike.
@@ -292,7 +299,25 @@ class PacManApp:
                     and ghost_accumulated_time >= ghost_interval
                 ):
                     if not self.cheat_mode.ghosts_frozen:
+                        # Remember ghost's position before the logical move.
+                        previous_positions = {
+                            ghost: ghost.position
+                            for ghost in self.active_level.ghosts
+                        }
+
                         self.active_level.move_ghosts()
+
+                        # Animates only ghosts that actually moved.
+                        for ghost in self.active_level.ghosts:
+                            if (
+                                ghost.state != GhostState.EATEN
+                                and ghost.position != previous_positions[ghost]
+                            ):
+                                self.ghost_visual_moves[ghost] = (
+                                    previous_positions[ghost],
+                                    current_time,
+                                )
+
                     ghost_accumulated_time -= ghost_interval
 
                     # Resolve collisions caused by ghost movement.
@@ -455,6 +480,7 @@ class PacManApp:
         # Clear any animation left over from the previous level.
         self.visual_move_start = None
         self.visual_move_end = None
+        self.ghost_visual_moves.clear()
 
     def start_new_game(self) -> None:
         """Create the state for a new Pac-Man game."""
@@ -580,8 +606,12 @@ class PacManApp:
                 self.change_state(AppState.GAME_OVER)
             else:
                 self.active_level.reset_positions()
-            self.visual_move_start = None
-            self.visual_move_end = None
+
+                # Everyone has teleported to spawn after losing a life.
+                # Discard animations from their previous positions.
+                self.visual_move_start = None
+                self.visual_move_end = None
+                self.ghost_visual_moves.clear()
             return
 
         # Eat frightened ghosts and award points for each successful capture.
@@ -731,22 +761,65 @@ class PacManApp:
             self.pos(self.active_level.player.position, dim)
             )
 
-        # Ghost sprites follow the same cell-centering coordinates.
+        # Draw ghosts independently of Pac-Man's movement animation.
         for ghost in self.active_level.ghosts:
-            # Eaten ghosts blink at spawn until their respawn delay expires.
-            if (
-                ghost.state == GhostState.EATEN
-                and int(time.monotonic() * 4) % 2 == 0
-            ):
-                continue
+            # Eaten ghosts return directly to spawn without sliding.
+            if ghost.state == GhostState.EATEN:
+                self.ghost_visual_moves.pop(ghost, None)
+
+                # Blink while waiting to respawn.
+                if int(time.monotonic() * 4) % 2 == 0:
+                    continue
 
             direction = ghost.direction
             sprite = ghost.sprite[direction]
             dim = (sprite.get_width(), sprite.get_height())
 
+            # Find the screen position of the ghost's current maze cell.
+            x, y = ghost.position
+            target_x, target_y = self.block_pos[y * 2 + 1][x * 2 + 1]
+            draw_x, draw_y = target_x, target_y
+
+            animation = self.ghost_visual_moves.get(ghost)
+
+            if animation is not None:
+                start_position, started_at = animation
+                duration = (
+                    self.active_level.config.ghost_move_interval_ms / 1000
+                )
+
+                # Calculate how far through the movement animation we are.
+                progress = min(
+                    1.0,
+                    (time.monotonic() - started_at) / max(duration, 0.001),
+                )
+
+                start_x, start_y = start_position
+                origin_x, origin_y = self.block_pos[
+                    start_y * 2 + 1
+                ][start_x * 2 + 1]
+
+                draw_x = round(
+                    origin_x + (target_x - origin_x) * progress
+                )
+                draw_y = round(
+                    origin_y + (target_y - origin_y) * progress
+                )
+
+                # Finished animations no longer need to be stored.
+                if progress >= 1.0:
+                    self.ghost_visual_moves.pop(ghost, None)
+
+            # Centre the sprite inside the visual maze cell.
+            block_width = self.block.get_width()
+            block_height = self.block.get_height()
+
             self.screen.blit(
                 sprite,
-                self.pos(ghost.position, dim),
+                (
+                    draw_x + center(block_width, dim[0]),
+                    draw_y + center(block_height, dim[1]),
+                ),
             )
 
         # The timer can be absent outside a loaded level.

@@ -433,6 +433,7 @@ def create_collision_test_app(
     app.state = AppState.PLAYING
     app.visual_move_start = None
     app.visual_move_end = None
+    app.ghost_visual_moves = {}
 
     maze = Maze([
         [Wall.NONE for _ in range(3)]
