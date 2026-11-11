@@ -846,3 +846,141 @@ def test_invincibility_prevents_life_loss() -> None:
     app.resolve_ghost_collisions()
     assert app.game_state.lives == starting_lives
     assert app.state == AppState.PLAYING
+
+
+def test_disco_mode_doubles_points() -> None:
+    """Verify disco mode doubles points without marking cheats as used."""
+
+    app = PacManApp(_test_config())
+    _start_test_game(app)
+
+    assert app.game_state is not None
+
+    # Normal scoring.
+    app.award_points(10)
+    assert app.game_state.score == 10
+
+    # Disco mode doubles points.
+    app.cheat_mode.toggle_disco_enabled()
+    app.award_points(10)
+    assert app.game_state.score == 30
+
+    # Disco mode does not count as cheating.
+    assert app.cheat_mode.cheats_used is False
+
+    # Disabling disco restores normal scoring.
+    app.cheat_mode.toggle_disco_enabled()
+    app.award_points(10)
+    assert app.game_state.score == 40
+
+
+def test_timer_freeze_preserves_ghost_lifecycle() -> None:
+    """Freeze level time while frightened and respawn timers continue."""
+
+    app = PacManApp(_test_config())
+    _start_test_game(app)
+
+    assert app.active_level is not None
+    level = app.active_level
+
+    level.frighten_ghosts()
+
+    ghost = level.ghosts[0]
+    assert ghost.eat() is True
+
+    # Five seconds pass with the level countdown frozen.
+    level.tick(5, freeze_level_timer=True)
+
+    # The level countdown has not changed.
+    assert level.remaining_time == 90
+
+    # Frightened time continues to decrease.
+    assert level.frightened_timer == 1
+
+    # The eaten ghost has completed its five-second respawn.
+    assert ghost.respawn_timer == 0
+    assert ghost.position == ghost.spawn_position
+
+    # Frightened mode is still active, so the ghost respawns frightened.
+    assert ghost.state == GhostState.FRIGHTENED
+
+    # Normal countdown behaviour resumes when the freeze is disabled.
+    level.tick(1)
+
+    assert level.remaining_time == 89
+    assert level.frightened_timer == 0
+    assert ghost.state == GhostState.ENRAGED
+
+
+def test_ghost_freeze_stops_movement_not_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Frozen ghosts do not move, but the level timer continues."""
+
+    app = PacManApp(_test_config())
+    _start_test_game(app)
+
+    assert app.active_level is not None
+    level = app.active_level
+
+    app.cheat_mode.toggle_ghost_freeze()
+
+    movement_calls = 0
+
+    def track_ghost_movement() -> None:
+        nonlocal movement_calls
+        movement_calls += 1
+
+    monkeypatch.setattr(level, "move_ghosts", track_ghost_movement)
+
+    # Simulate enough time for ghost movement and one timer tick.
+    timestamps = iter([0.0, 1.1])
+
+    fake_time = SimpleNamespace(
+        monotonic=lambda: next(timestamps),
+        time=lambda: 0.0,
+        sleep=lambda seconds: None,
+    )
+
+    monkeypatch.setattr(application_module, "time", fake_time)
+    monkeypatch.setattr(app, "_load_bg", lambda: None)
+    monkeypatch.setattr(app, "_get_events", lambda: None)
+    monkeypatch.setattr(
+        application_module.pg.display,
+        "flip",
+        lambda: None,
+    )
+    monkeypatch.setattr(app, "_run_game", app.stop)
+
+    app.run()
+
+    assert movement_calls == 0
+    assert level.remaining_time == 89
+
+
+def test_cheat_keyboard_shortcuts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify gameplay keyboard shortcuts toggle the correct cheats."""
+
+    app = PacManApp(_test_config())
+    _start_test_game(app)
+
+    shortcuts = [
+        (pg.K_f, "disco_enabled"),
+        (pg.K_i, "invincible"),
+        (pg.K_g, "ghosts_frozen"),
+        (pg.K_t, "timer_stopped"),
+    ]
+
+    for key, attribute in shortcuts:
+        event = pg.event.Event(pg.KEYDOWN, key=key)
+        monkeypatch.setattr(pg.event, "get", lambda: [event])
+
+        # First press enables the feature.
+        app._get_events()
+        assert getattr(app.cheat_mode, attribute) is True
+
+        # Second press disables it.
+        app._get_events()
+        assert getattr(app.cheat_mode, attribute) is False

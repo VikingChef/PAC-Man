@@ -266,7 +266,10 @@ class PacManApp:
 
                 # Process complete seconds while preserving fractions.
                 while accumulated_time >= 1.0:
-                    self.active_level.tick(1)
+                    self.active_level.tick(
+                        1,
+                        freeze_level_timer=self.cheat_mode.timer_stopped,
+                    )
                     accumulated_time -= 1.0
 
                     # Handle level timeout.
@@ -288,7 +291,8 @@ class PacManApp:
                     self.state == AppState.PLAYING
                     and ghost_accumulated_time >= ghost_interval
                 ):
-                    self.active_level.move_ghosts()
+                    if not self.cheat_mode.ghosts_frozen:
+                        self.active_level.move_ghosts()
                     ghost_accumulated_time -= ghost_interval
 
                     # Resolve collisions caused by ghost movement.
@@ -401,12 +405,25 @@ class PacManApp:
                 )
                 if char_state is not None:
                     self._handle_char_select_action(char_state)
-            elif (self.state == AppState.PLAYING
-                  and event.type == pg.KEYDOWN
-                  and event.key in self.key_map):
+            elif (
+                self.state == AppState.PLAYING
+                and event.type == pg.KEYDOWN
+            ):
+                if event.key == pg.K_f:
+                    self.cheat_mode.toggle_disco_enabled()
 
-                # Route keyboard input through the tested maze-aware movement.
-                self.move_player(self.key_map[event.key])
+                elif event.key == pg.K_i:
+                    self.cheat_mode.toggle_invincibility()
+
+                elif event.key == pg.K_g:
+                    self.cheat_mode.toggle_ghost_freeze()
+
+                elif event.key == pg.K_t:
+                    self.cheat_mode.toggle_timer_stopped()
+
+                elif event.key in self.key_map:
+                    # Route movement through the tested maze-aware method.
+                    self.move_player(self.key_map[event.key])
 
     def _load_level(
         self,
@@ -477,6 +494,14 @@ class PacManApp:
                 )
             )
 
+    def award_points(self, points: int) -> None:
+        """Award points, doubling them when disco mode is active."""
+        if self.game_state is None:
+            return
+
+        multiplier = 2 if self.cheat_mode.disco_enabled else 1
+        self.game_state.score += points * multiplier
+
     def move_player(self, direction: Direction) -> bool:
         """Move the active player in the requested direction."""
 
@@ -506,9 +531,9 @@ class PacManApp:
 
         # Apply the configured score for the collected pacgum type.
         if collected_pacgum == PacgumType.PACGUM:
-            self.game_state.score += self.config.points_per_pacgum
+            self.award_points(self.config.points_per_pacgum)
         elif collected_pacgum == PacgumType.SUPER_PACGUM:
-            self.game_state.score += self.config.points_per_super_pacgum
+            self.award_points(self.config.points_per_super_pacgum)
             self.active_level.frighten_ghosts()
 
         # Advance once collecting the final pacgum completes the level.
@@ -562,7 +587,7 @@ class PacManApp:
         # Eat frightened ghosts and award points for each successful capture.
         for ghost in colliding_ghosts:
             if ghost.eat():
-                self.game_state.score += self.config.points_per_ghost
+                self.award_points(self.config.points_per_ghost)
 
     def _advance_level(
         self,
@@ -708,11 +733,19 @@ class PacManApp:
 
         # Ghost sprites follow the same cell-centering coordinates.
         for ghost in self.active_level.ghosts:
+            # Eaten ghosts blink at spawn until their respawn delay expires.
+            if (
+                ghost.state == GhostState.EATEN
+                and int(time.monotonic() * 4) % 2 == 0
+            ):
+                continue
+
             direction = ghost.direction
-            dim = (ghost.sprite[direction].get_width(),
-                   ghost.sprite[direction].get_height())
+            sprite = ghost.sprite[direction]
+            dim = (sprite.get_width(), sprite.get_height())
+
             self.screen.blit(
-                ghost.sprite[direction],
+                sprite,
                 self.pos(ghost.position, dim),
             )
 
