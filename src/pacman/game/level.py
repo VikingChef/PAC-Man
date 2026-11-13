@@ -41,7 +41,10 @@ class Level:
     ) -> PacgumType | None:
         """Remove and return the pacgum at a position, if present."""
 
-        pacgum: PacgumType | None = self.pacgums.pop(position, None)
+        # Keep sprite data in the level, but return only the gameplay type.
+        pacgum: tuple[PacgumType, pg.Surface] | None = (
+            self.pacgums.pop(position, None)
+        )
         return pacgum[0] if pacgum is not None else None
 
     def frighten_ghosts(self) -> None:
@@ -104,13 +107,15 @@ class Level:
     def tick(
         self,
         elapsed_seconds: int,
+        freeze_level_timer: bool = False,
     ) -> None:
-        """Reduce the level and frightened timers by elapsed seconds."""
+        """Advance timers, optionally freezing the level countdown."""
 
-        self.remaining_time = max(
-            0,
-            self.remaining_time - elapsed_seconds,
-        )
+        if not freeze_level_timer:
+            self.remaining_time = max(
+                0,
+                self.remaining_time - elapsed_seconds,
+            )
 
         # Remember whether the frightened timer was running.
         was_frightened = self.frightened_timer > 0
