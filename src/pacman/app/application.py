@@ -31,7 +31,7 @@ from pacman.app.viewport import screen_to_canvas
 from pacman.app.viewport import MENU_WIDTH, MENU_HEIGHT
 from pacman.app.viewport import fit_canvas
 from pacman.app.hud import GameHUD
-from pacman.app.pause_menu import PauseMenu
+from pacman.app.pause_menu import PauseMenu, PauseMenuAction
 
 
 class AppState(Enum):
@@ -670,11 +670,24 @@ class PacManApp:
                     self.state = AppState.PAUSED
 
             elif self.state == AppState.PAUSED:
-                if event.type != pg.KEYDOWN:
-                    continue
-
-                if event.key == pg.K_SPACE:
+                if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
                     self.state = AppState.PLAYING
+
+                if event.type == pg.MOUSEBUTTONDOWN:
+                    canvas_position = screen_to_canvas(
+                            event.pos,
+                            self.menu_canvas.get_size(),
+                            self.screen.get_size(),
+                        )
+                    pause_event = pg.event.Event(
+                            event.type,
+                            {**event.dict, "pos": canvas_position}
+                        )
+                    action: PauseMenuAction | None = (
+                        self.pause_game.handle_event(pause_event)
+                        )
+                    if action is not None:
+                        self._handle_pause_action(action)
 
     def _load_level(
         self,
@@ -941,6 +954,21 @@ class PacManApp:
             self.start_new_game()
         elif action == CharSelectAction.MAIN_MENU:
             self.change_state(AppState.MAIN_MENU)
+
+    def _handle_pause_action(self, action: PauseMenuAction) -> AppState:
+        if action == PauseMenuAction.BACK_TO_MAIN_MENU:
+            self.change_state(AppState.MAIN_MENU)
+        elif action == PauseMenuAction.CHANGE_QUEEN:
+            if self.queen_chosen == CharSelectAction.WAKA_WAKA_WANDA:
+                self.change_queen(CharSelectAction.MS_POWER_PELLET)
+                self.active_level.player.path = 'ms-pellet'
+            elif self.queen_chosen == CharSelectAction.MS_POWER_PELLET:
+                self.change_queen(CharSelectAction.WAKA_WAKA_WANDA)
+                self.active_level.player.path = 'waka'
+        elif action == PauseMenuAction.RESTART_LEVEL:
+            pass
+        elif action == PauseMenuAction.QUIT_GAME:
+            self.stop()
 
     def _run_main_menu(self) -> None:
         """Render the main menu over a fullscreen animated background."""
