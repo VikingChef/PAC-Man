@@ -981,3 +981,33 @@ def test_cheat_keyboard_shortcuts_disabled(
         # Old shortcuts must not activate cheats.
         app._get_events()
         assert getattr(app.cheat_mode, attribute) is False
+
+
+def test_cheating_permanently_disables_scoring() -> None:
+    """Cheating resets points and prevents further scoring."""
+    app = PacManApp(_test_config())
+    _start_test_game(app)
+
+    assert app.game_state is not None
+
+    # Earn points normally before activating a cheat.
+    app.award_points(100)
+    assert app.game_state.score == 100
+
+    # Invincibility invalidates the score immediately.
+    app.cheat_mode.toggle_invincibility()
+    assert app.game_state.score == 0
+
+    # No further points may be awarded while cheating.
+    app.award_points(50)
+    assert app.game_state.score == 0
+
+    # Disabling invincibility does not restore scoring.
+    app.cheat_mode.toggle_invincibility()
+    app.award_points(50)
+    assert app.game_state.score == 0
+
+    # Disco Mode cannot override the permanent scoring lockout.
+    app.cheat_mode.toggle_disco_enabled()
+    app.award_points(50)
+    assert app.game_state.score == 0
