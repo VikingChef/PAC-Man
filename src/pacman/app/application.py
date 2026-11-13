@@ -3,7 +3,6 @@
 import os
 import time
 from collections.abc import Iterator
-from typing import Final
 from enum import Enum, auto
 from random import randint
 from types import TracebackType
@@ -32,9 +31,7 @@ from pacman.app.viewport import screen_to_canvas
 from pacman.app.viewport import MENU_WIDTH, MENU_HEIGHT
 from pacman.app.viewport import fit_canvas
 from pacman.app.hud import GameHUD
-
-
-ALL_WALLS: Final = Wall.WEST | Wall.EAST | Wall.SOUTH | Wall.NORTH
+from pacman.app.pause_menu import PauseMenu
 
 
 class AppState(Enum):
@@ -156,6 +153,8 @@ class PacManApp:
         self.level_bg: pg.Surface = load_trans_image(
             f'{IMAGES}/level-bg.png'
         )
+        self.showing_level_nr: bool = False
+        self.pause_game: PauseMenu = PauseMenu(self.screen)
 
     @property
     def bg_pos(self) -> tuple[int, int]:
@@ -178,6 +177,17 @@ class PacManApp:
             return None
         return self.font.render(
             str(self.active_level.remaining_time),
+            True,
+            color='white'
+            )
+
+    @property
+    def level_nr(self) -> pg.Surface | None:
+        """Render the level number, if available."""
+        if self.active_level is None:
+            return None
+        return self.font.render(
+            f'Level {self.game_state.current_level}',
             True,
             color='white'
             )
@@ -449,9 +459,6 @@ class PacManApp:
             elif self.state == AppState.PLAYING:
                 self._run_game()
 
-            elif self.state == AppState.PAUSED:
-                self._run_pause_menu()
-
             elif self.state == AppState.TIMEOUT:
                 # Keep the level visible for the existing
                 # three-second timeout sequence.
@@ -491,10 +498,20 @@ class PacManApp:
 
             # Fit the completed gameplay canvas onto the physical display.
             # Menus continue rendering directly onto the screen.
-            if self.state in (AppState.PLAYING, AppState.TIMEOUT):
+            if self.state in (AppState.PLAYING,
+                              AppState.TIMEOUT,
+                              AppState.PAUSED):
                 render_canvas(self.game_canvas, self.screen)
+                if self.state == AppState.PAUSED:
+                    self._run_pause_menu()
+                if self.state == AppState.PLAYING:
+                    self.display_level_nr()
 
             pg.display.flip()
+
+            if self.showing_level_nr:
+                time.sleep(1)
+                self.showing_level_nr = False
 
             # Limit the application to approximately 60 FPS.
             iter_end: float = time.time()
@@ -649,6 +666,16 @@ class PacManApp:
                 if event.key in self.key_map:
                     self.move_player(self.key_map[event.key])
 
+                if event.key == pg.K_SPACE:
+                    self.state = AppState.PAUSED
+
+            elif self.state == AppState.PAUSED:
+                if event.type != pg.KEYDOWN:
+                    continue
+
+                if event.key == pg.K_SPACE:
+                    self.state = AppState.PLAYING
+
     def _load_level(
         self,
         level_config: LevelConfig,
@@ -712,12 +739,12 @@ class PacManApp:
         )
         if frame is not None:
             self.bg.append(frame)
-            self.loading.render_bar(
-                min(
-                    4,
-                    len(self.bg) * 5 // self.bg_files
-                )
-            )
+            # self.loading.render_bar(
+            #     min(
+            #         4,
+            #         len(self.bg) * 5 // self.bg_files
+            #     )
+            # )
 
     def _reset_score_after_cheat(self) -> None:
         """Invalidate the score when cheating first occurs."""
@@ -1168,7 +1195,7 @@ class PacManApp:
         """Handle the paused application state."""
 
         # Pause menu input and presentation will connect here.
-        pass
+        self.pause_game.render_pause_menu()
 
     def _run_game_over(self) -> None:
         """Handle the game-over application state."""
@@ -1228,6 +1255,18 @@ class PacManApp:
         block_x, block_y = self.block.get_width(), self.block.get_height()
         return (center(block_x, dim[0]) + draw_x,
                 center(block_y, dim[1]) + draw_y)
+
+    def display_level_nr(self) -> None:
+        if self.active_level.remaining_time == self.config.level_max_time:
+            x: int = (
+                center(self.screen.get_width(), self.level_nr.get_width())
+            )
+            y: int = (
+                center(self.screen.get_height(), self.level_nr.get_height())
+            )
+            self.screen.fill(color='darkgrey', special_flags=pg.BLEND_MULT)
+            self.screen.blit(self.level_nr, (x, y))
+            self.showing_level_nr = True
 
     def __enter__(self) -> "PacManApp":
         """Dunder method for context managers.
