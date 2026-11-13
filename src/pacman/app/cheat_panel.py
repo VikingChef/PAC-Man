@@ -40,10 +40,13 @@ class CheatPanel:
     SWITCH_KNOB = (255, 255, 255)
 
     def __init__(self) -> None:
-        """Prepare the fonts used by the control panel."""
-        self.title_font = pg.font.SysFont("arial", 34, bold=True)
-        self.label_font = pg.font.SysFont("arial", 23, bold=True)
-        self.detail_font = pg.font.SysFont("arial", 17)
+        """Prepare retro pixel fonts for the control panel."""
+        font_path = "src/pacman/app/assets/PressStart2P-Regular.ttf"
+
+        # Pixel fonts are wider than Arial, so use smaller sizes.
+        self.title_font = pg.font.Font(font_path, 24)
+        self.label_font = pg.font.Font(font_path, 15)
+        self.detail_font = pg.font.Font(font_path, 12)
 
     def _get_layout(
         self,
@@ -73,7 +76,8 @@ class CheatPanel:
         row_width = panel.width - 60
         row_height = 58
         row_spacing = 12
-        first_row_y = panel.top + 112
+        # Leave room for a two-line title and its subtitle.
+        first_row_y = panel.top + 140
 
         rows = [
             pg.Rect(
@@ -169,15 +173,25 @@ class CheatPanel:
             border_radius=18,
         )
 
-        title = self.title_font.render(
-            "THE FABULOUS CONTROL PANEL",
-            True,
-            self.TEXT,
+        # Split the title into two centred lines to avoid the X.
+        title_lines = (
+            "THE FABULOUS",
+            "CONTROL PANEL",
         )
-        screen.blit(
-            title,
-            (panel.centerx - title.get_width() // 2, panel.top + 30),
-        )
+
+        for index, line in enumerate(title_lines):
+            title = self.title_font.render(
+                line,
+                True,
+                self.TEXT,
+            )
+            title_rect = title.get_rect(
+                center=(
+                    panel.centerx,
+                    panel.top + 35 + index * 38,
+                ),
+            )
+            screen.blit(title, title_rect)
 
         subtitle = self.detail_font.render(
             "Darling, choose your superpowers.",
@@ -186,7 +200,7 @@ class CheatPanel:
         )
         screen.blit(
             subtitle,
-            (panel.centerx - subtitle.get_width() // 2, panel.top + 77),
+            (panel.centerx - subtitle.get_width() // 2, panel.top + 105),
         )
 
         # The states are read directly from CheatMode on every frame.

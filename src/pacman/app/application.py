@@ -25,6 +25,13 @@ from pacman.game.cheat_mode import CheatMode
 from pacman.app.cheat_code import CheatCode
 from pacman.app.cheat_panel import CheatPanel
 from pacman.app.disco_effects import DiscoEffects
+from pacman.app.viewport import GAME_WIDTH, GAME_HEIGHT
+from pacman.app.viewport import maze_origin
+from pacman.app.viewport import render_canvas
+from pacman.app.viewport import screen_to_canvas
+from pacman.app.viewport import MENU_WIDTH, MENU_HEIGHT
+from pacman.app.viewport import fit_canvas
+from pacman.app.hud import GameHUD
 
 
 ALL_WALLS: Final = Wall.WEST | Wall.EAST | Wall.SOUTH | Wall.NORTH
@@ -51,76 +58,84 @@ class PacManApp:
 
     def __init__(self, config: GameConfig) -> None:
         """Create the application with validated configuration data."""
-
-        # Initialise Pygame before creating the display or loading sprites.
+        # Initialise Pygame before creating surfaces or loading sprites.
         pg.init()
 
-        # Store the validated configuration for the whole application.
+        # Store configuration and initialise application lifecycle state.
         self.config = config
-
-        # Start the application in the main menu.
         self.state = AppState.MAIN_MENU
-
-        # Track whether the main application loop should continue.
         self.running = True
-
-        # Track start time for animations.
         self.start_time: float = time.time() * 1000
 
-        # Create run-specific game state only when a new game starts.
+        # Initialise gameplay attributes before the main loop starts.
+        # A level and game state are created only after character selection.
         self.game_state: GameState | None = None
-
-        # Create the active level only when a new game starts.
         self.active_level: Level | None = None
+
+        # The display matches the physical monitor, while gameplay uses
+        # fixed logical dimensions and is scaled onto that display.
         self.screen: pg.Surface = pg.display.set_mode(
             flags=pg.FULLSCREEN
         )
+        self.game_canvas: pg.Surface = pg.Surface(
+            (GAME_WIDTH, GAME_HEIGHT)
+        )
 
-        # Start of the three-second timeout display, if one is active.
+        # Track the delay before resolving an expired level timer.
         self.timeout_started_at: float | None = None
 
-        # Background.
+        # Load the animated backgrounds and initialise Ilias's UI.
         path: str = "./src/pacman/app/images/bg-frames"
         self.bg_files: int = len(os.listdir(path))
         self.frame_gen: Iterator[pg.Surface] = load_frames(path)
         self.bg: list[pg.Surface] = []
-        self.main_menu: MainMenu = MainMenu(self.screen)
-        self.char_select: CharacterSelect = CharacterSelect(self.screen)
-        self.loading: LoadingBar = LoadingBar(self.screen)
+
+        # Keep menu artwork at its original design dimensions.
+        # Transparency allows the animated background to remain visible.
+        self.menu_canvas = pg.Surface(
+            (MENU_WIDTH, MENU_HEIGHT),
+            pg.SRCALPHA,
+        )
+
+        # Calculate menu button positions using logical dimensions.
+        # The loading screen continues using the physical display.
+        self.main_menu = MainMenu(self.menu_canvas)
+        self.char_select = CharacterSelect(self.menu_canvas)
+        self.loading = LoadingBar(self.screen)
+
+        # Store the selected character and visual maze geometry.
         self.queen_chosen: CharSelectAction | None = None
         self.active_level_layout: list[list[str]] = []
-        self.block: pg.Surface = load_trans_image(f'{IMAGES}/level-block.gif')
+        self.block: pg.Surface = load_trans_image(
+            f'{IMAGES}/level-block.gif'
+        )
         self.block_pos: list[list[tuple[int, int]]] = []
 
-        # Visual movement is independent of the logical maze coordinates.
+        # Player animation is separate from logical maze movement.
         self.visual_move_start: tuple[int, int] | None = None
         self.visual_move_end: tuple[int, int] | None = None
         self.visual_move_started: float = 0.0
         self.visual_move_duration: float = 0.12
 
-        # Track each ghost's movement independently of its logical position.
-        # Each entry stores the starting cell and animation start time.
+        # Track ghost animations independently from player movement.
         self.ghost_visual_moves: dict[
             Ghost, tuple[tuple[int, int], float]
         ] = {}
 
-        # CheatMode owns the actual gameplay settings and cheat history.
-        self.cheat_mode = CheatMode()
-
-        # Recognise the secret sequence independently of the game controls.
+        # Keep cheat settings in one authoritative CheatMode object.
+        # The panel reads this state rather than storing a second copy.
+        self.cheat_mode = CheatMode(self._reset_score_after_cheat)
         self.cheat_code = CheatCode()
-
-        # The application controls panel visibility and gameplay suspension.
         self.cheat_panel_open = False
-
-        # UI components do not own cheat settings. They receive the active
-        # CheatMode when needed, avoiding stale state after a new game.
         self.cheat_panel = CheatPanel()
+
+        # The HUD displays existing gameplay state without modifying it.
+        self.hud = GameHUD()
 
         # Decorative disco effects remain independent of gameplay logic.
         self.disco_effects = DiscoEffects()
 
-        # Keep keyboard bindings together so arrows and WASD behave alike.
+        # Support both arrow keys and WASD for player movement.
         self.key_map: dict[int, Direction] = {
             pg.K_UP: Direction.NORTH,
             pg.K_w: Direction.NORTH,
@@ -129,13 +144,18 @@ class PacManApp:
             pg.K_RIGHT: Direction.EAST,
             pg.K_d: Direction.EAST,
             pg.K_LEFT: Direction.WEST,
-            pg.K_a: Direction.WEST
+            pg.K_a: Direction.WEST,
         }
 
-        # HUD resources introduced by the UI branch.
+        # Keep existing font and background assets available to
+        # the game's rendering methods and future HUD.
         self.font: pg.font.Font = pg.font.Font(
-            "src/pacman/app/assets/PressStart2P-Regular.ttf", 40)
-        self.level_bg: pg.Surface = load_trans_image(f'{IMAGES}/level-bg.png')
+            "src/pacman/app/assets/PressStart2P-Regular.ttf",
+            40,
+        )
+        self.level_bg: pg.Surface = load_trans_image(
+            f'{IMAGES}/level-bg.png'
+        )
 
     @property
     def bg_pos(self) -> tuple[int, int]:
@@ -181,25 +201,35 @@ class PacManApp:
         return output
 
     def _get_block_pos(self) -> list[list[tuple[int, int]]]:
-        output: list[list[tuple[int, int]]] = []
-        if self.active_level is not None:
-            for i, row in enumerate(self.active_level_layout):
-                output.append([])
-                for j, col in enumerate(row):
-                    x: int = int(
-                        (self.screen.get_width()
-                         - self.block.get_width()
-                         * len(self.active_level_layout[0])) / 2
-                        + j * self.block.get_width()
-                    )
-                    y: int = int(
-                        (self.screen.get_height()
-                         - self.block.get_height()
-                         * len(self.active_level_layout)) / 2
-                        + i * self.block.get_height()
-                    )
-                    output[i].append((x, y))
-        return output
+        """Calculate maze block positions on the logical game canvas."""
+        positions: list[list[tuple[int, int]]] = []
+
+        if self.active_level is None:
+            return positions
+
+        # Measure the complete visual maze using the existing block size.
+        # This works even if later levels have different dimensions.
+        block_width = self.block.get_width()
+        block_height = self.block.get_height()
+
+        maze_width = len(self.active_level_layout[0]) * block_width
+        maze_height = len(self.active_level_layout) * block_height
+
+        # Position the complete maze below the reserved HUD.
+        # All walls, characters and collectibles use these coordinates.
+        origin_x, origin_y = maze_origin((maze_width, maze_height))
+
+        # Calculate each block relative to the maze's starting position.
+        # This preserves the existing logical-to-visual cell mapping.
+        for row_index, row in enumerate(self.active_level_layout):
+            positions.append([])
+
+            for column_index, _ in enumerate(row):
+                x = origin_x + column_index * block_width
+                y = origin_y + row_index * block_height
+                positions[row_index].append((x, y))
+
+        return positions
 
     def create_paths(
         self, output: list[list[str]], width: int
@@ -448,19 +478,21 @@ class PacManApp:
             elif self.state == AppState.INSTRUCTIONS:
                 self._run_instructions()
 
-            # The panel is an overlay, not another AppState.
-            # Draw it after the game so its controls stay visible.
-            #
-            # CheatPanel receives the current CheatMode instance
-            # and never owns a second copy of the cheat settings.
+            # Draw the cheat panel over the game using the same logical
+            # canvas, so its position and size scale with the maze.
             if (
                 self.cheat_panel_open
                 and self.state == AppState.PLAYING
             ):
                 self.cheat_panel.render(
-                    self.screen,
+                    self.game_canvas,
                     self.cheat_mode,
                 )
+
+            # Fit the completed gameplay canvas onto the physical display.
+            # Menus continue rendering directly onto the screen.
+            if self.state in (AppState.PLAYING, AppState.TIMEOUT):
+                render_canvas(self.game_canvas, self.screen)
 
             pg.display.flip()
 
@@ -510,16 +542,38 @@ class PacManApp:
                 self.stop()
                 continue
 
-            # When the panel is open, prevent input from reaching the game.
-            # This also prevents mouse clicks from affecting other screens.
+            # Handle panel input before ordinary gameplay controls.
+            # The panel uses logical canvas coordinates, not display pixels.
             if self.cheat_panel_open:
                 if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
                     self.cheat_panel_open = False
                     self.cheat_code.reset()
+                    continue
 
-                elif self.cheat_panel.handle_event(
-                    event,
-                    self.screen,
+                panel_event = event
+
+                if event.type == pg.MOUSEBUTTONDOWN:
+                    # Convert physical mouse coordinates to canvas space.
+                    canvas_position = screen_to_canvas(
+                        event.pos,
+                        self.game_canvas.get_size(),
+                        self.screen.get_size(),
+                    )
+
+                    # Ignore clicks in the margins around the canvas.
+                    if canvas_position is None:
+                        continue
+
+                    # Preserve the mouse button and other event details.
+                    # Only replace its position with logical coordinates.
+                    panel_event = pg.event.Event(
+                        event.type,
+                        {**event.dict, "pos": canvas_position},
+                    )
+
+                if self.cheat_panel.handle_event(
+                    panel_event,
+                    self.game_canvas,
                     self.cheat_mode,
                 ):
                     self.cheat_panel_open = False
@@ -533,21 +587,47 @@ class PacManApp:
                 self.stop()
                 continue
 
-            if self.state == AppState.MAIN_MENU:
-                menu_action: MainMenuAction | None = (
-                    self.main_menu.handle_event(event)
-                )
+            if self.state in (
+                AppState.MAIN_MENU,
+                AppState.CHAR_SELECT,
+            ):
+                # Menu buttons use logical coordinates, but Pygame
+                # reports mouse clicks in physical display coordinates.
+                menu_event = event
 
-                if menu_action is not None:
-                    self._handle_main_menu_action(menu_action)
+                if event.type == pg.MOUSEBUTTONDOWN:
+                    canvas_position = screen_to_canvas(
+                        event.pos,
+                        self.menu_canvas.get_size(),
+                        self.screen.get_size(),
+                    )
 
-            elif self.state == AppState.CHAR_SELECT:
-                character_action: CharSelectAction | None = (
-                    self.char_select.handle_event(event)
-                )
+                    # Clicks outside the fitted menu have no target.
+                    if canvas_position is None:
+                        continue
 
-                if character_action is not None:
-                    self._handle_char_select_action(character_action)
+                    # Preserve the original event and change only
+                    # the position passed to the menu.
+                    menu_event = pg.event.Event(
+                        event.type,
+                        {**event.dict, "pos": canvas_position},
+                    )
+
+                if self.state == AppState.MAIN_MENU:
+                    menu_action: MainMenuAction | None = (
+                        self.main_menu.handle_event(menu_event)
+                    )
+
+                    if menu_action is not None:
+                        self._handle_main_menu_action(menu_action)
+
+                else:
+                    character_action: CharSelectAction | None = (
+                        self.char_select.handle_event(menu_event)
+                    )
+
+                    if character_action is not None:
+                        self._handle_char_select_action(character_action)
 
             elif self.state == AppState.PLAYING:
                 if event.type != pg.KEYDOWN:
@@ -604,8 +684,8 @@ class PacManApp:
     def start_new_game(self) -> None:
         """Create the state for a new Pac-Man game."""
 
-        # Reset cheat settings for the new run.
-        self.cheat_mode = CheatMode()
+        # Reset cheat settings and reconnect the scoring callback.
+        self.cheat_mode = CheatMode(self._reset_score_after_cheat)
 
         # Build fresh run-wide state from the validated configuration.
         self.game_state = GameState(
@@ -639,11 +719,24 @@ class PacManApp:
                 )
             )
 
+    def _reset_score_after_cheat(self) -> None:
+        """Invalidate the score when cheating first occurs."""
+        # CheatMode calls this only when a real cheat is first enabled.
+        # Disco Mode alone does not invalidate the player's score.
+        if self.game_state is not None:
+            self.game_state.score = 0
+
     def award_points(self, points: int) -> None:
-        """Award points, doubling them when disco mode is active."""
+        """Award points only while the current run remains legitimate."""
         if self.game_state is None:
             return
 
+        # Once a real cheat has been used, scoring is permanently disabled.
+        # Switching cheats off does not restore scoring privileges.
+        if self.cheat_mode.cheats_used:
+            return
+
+        # Fabulous Mode alone is allowed to double the normal points.
         multiplier = 2 if self.cheat_mode.disco_enabled else 1
         self.game_state.score += points * multiplier
 
@@ -823,64 +916,124 @@ class PacManApp:
             self.change_state(AppState.MAIN_MENU)
 
     def _run_main_menu(self) -> None:
-        """Handle the main menu application state."""
-
-        # Main menu input and presentation will connect here.
-        mouse: tuple[int, int] = pg.mouse.get_pos()
-        now: float = time.time() * 1000
-        bg_frame: int = (
+        """Render the main menu over a fullscreen animated background."""
+        now = time.time() * 1000
+        bg_frame = (
             int(now - self.start_time) // 100
         ) % len(self.bg)
-        self.screen.blit(
+
+        # Keep Ilias's animated background covering the entire monitor.
+        background = pg.transform.scale(
             self.bg[bg_frame],
-            self.bg_pos
+            self.screen.get_size(),
         )
+        self.screen.blit(background, (0, 0))
+
+        # Clear the transparent menu canvas before drawing the buttons.
+        self.menu_canvas.fill((0, 0, 0, 0))
+
+        # Hover detection must use the same coordinates as the buttons.
+        mouse = screen_to_canvas(
+            pg.mouse.get_pos(),
+            self.menu_canvas.get_size(),
+            self.screen.get_size(),
+        )
+
+        if mouse is None:
+            mouse = (-1, -1)
+
         self.main_menu.render_main_menu(
             self.start_time,
             mouse,
-            self.screen
+            self.menu_canvas,
         )
+
+        # Preserve the menu's proportions when fitting it to the screen.
+        scale, (offset_x, offset_y) = fit_canvas(
+            self.menu_canvas.get_size(),
+            self.screen.get_size(),
+        )
+        scaled_size = (
+            round(MENU_WIDTH * scale),
+            round(MENU_HEIGHT * scale),
+        )
+        scaled_menu = pg.transform.smoothscale(
+            self.menu_canvas,
+            scaled_size,
+        )
+        self.screen.blit(scaled_menu, (offset_x, offset_y))
 
     def _run_char_select(self) -> None:
-        """Handle the character select application state."""
-        mouse: tuple[int, int] = pg.mouse.get_pos()
-        now: float = time.time() * 1000
-        bg_frame: int = (
+        """Render character selection over the animated background."""
+        now = time.time() * 1000
+        bg_frame = (
             int(now - self.start_time) // 100
         ) % len(self.bg)
-        self.screen.blit(
+
+        # Stretch Ilias's animated background to the physical display.
+        background = pg.transform.scale(
             self.bg[bg_frame],
-            self.bg_pos
+            self.screen.get_size(),
         )
-        self.char_select.render_char_select(
-            mouse,
-            self.screen
+        self.screen.blit(background, (0, 0))
+
+        # Keep character artwork on the transparent logical canvas.
+        self.menu_canvas.fill((0, 0, 0, 0))
+
+        # Convert physical mouse position for accurate hover detection.
+        mouse = screen_to_canvas(
+            pg.mouse.get_pos(),
+            self.menu_canvas.get_size(),
+            self.screen.get_size(),
         )
 
+        if mouse is None:
+            mouse = (-1, -1)
+
+        self.char_select.render_char_select(
+            mouse,
+            self.menu_canvas,
+        )
+
+        # Fit all character artwork proportionally to the display.
+        scale, (offset_x, offset_y) = fit_canvas(
+            self.menu_canvas.get_size(),
+            self.screen.get_size(),
+        )
+        scaled_size = (
+            round(MENU_WIDTH * scale),
+            round(MENU_HEIGHT * scale),
+        )
+        scaled_menu = pg.transform.smoothscale(
+            self.menu_canvas,
+            scaled_size,
+        )
+        self.screen.blit(scaled_menu, (offset_x, offset_y))
+
     def _run_game(self) -> None:
-        """Render the active Pac-Man level and its visual effects."""
+        """Render the active level onto the logical gameplay canvas."""
         if self.active_level is None:
             return
 
-        # Draw the current maze background and walls.
-        self.screen.blit(self.level_bg, self.bg_pos)
+        # Draw gameplay onto a fixed-size canvas rather than the monitor.
+        # Clearing it prevents pixels from previous frames remaining visible.
+        canvas = self.game_canvas
+        canvas.fill((24, 18, 38))
 
+        # Draw the maze using positions relative to the logical canvas.
         for i, row in enumerate(self.active_level_layout):
             for j, col in enumerate(row):
                 if col == 'wall':
-                    self.screen.blit(
+                    canvas.blit(
                         self.block,
                         self.block_pos[i][j],
                     )
 
-        # Fabulous Mode decorates the existing maze with rainbow lights
-        # and four fixed disco balls outside its corners.
-        #
-        # Draw these effects before characters and collectibles so
-        # the lighting cannot obscure important gameplay elements.
+        # Fabulous Mode adds animated lighting and four disco balls.
+        # Draw these before characters and collectibles so important
+        # gameplay elements remain clearly visible.
         if self.cheat_mode.disco_enabled and self.block_pos:
-            # The outermost cells define the complete visual maze.
-            # Include the final block's dimensions in the bounds.
+            # Find the complete maze bounds, including the final block.
             maze_left, maze_top = self.block_pos[0][0]
             last_x, last_y = self.block_pos[-1][-1]
 
@@ -891,17 +1044,15 @@ class PacManApp:
                 last_y + self.block.get_height() - maze_top,
             )
 
-            # Decorative animation uses real time rather than
-            # gameplay timers. It therefore cannot affect the
-            # level countdown, ghosts or collision calculations.
+            # Decorative animation uses real time independently of the
+            # level countdown, ghost movement and gameplay cheat timers.
             self.disco_effects.render(
-                self.screen,
+                canvas,
                 maze_bounds,
                 time.monotonic(),
             )
 
-        # Each direction maps to the character-specific sprite
-        # chosen in the character-selection interface.
+        # Select the sprite corresponding to Pac-Man's current direction.
         direction: Direction = self.active_level.player.direction
         queen: pg.Surface = (
             self.active_level.player.sprite_path[direction]
@@ -912,7 +1063,8 @@ class PacManApp:
             queen.get_height(),
         )
 
-        self.screen.blit(
+        # Position and interpolate Pac-Man using logical canvas cells.
+        canvas.blit(
             queen,
             self.pos(self.active_level.player.position, dim),
         )
@@ -920,11 +1072,11 @@ class PacManApp:
         # Draw ghosts independently of Pac-Man's movement animation.
         for ghost in self.active_level.ghosts:
 
-            # Eaten ghosts return directly to spawn without sliding.
+            # Eaten ghosts teleport to spawn instead of sliding back.
             if ghost.state == GhostState.EATEN:
                 self.ghost_visual_moves.pop(ghost, None)
 
-                # Blink while waiting to respawn.
+                # Blink while waiting for the respawn timer to finish.
                 if int(time.monotonic() * 4) % 2 == 0:
                     continue
 
@@ -932,7 +1084,7 @@ class PacManApp:
             sprite = ghost.sprite[direction]
             dim = (sprite.get_width(), sprite.get_height())
 
-            # Find the screen position of the ghost's current maze cell.
+            # Find the ghost's destination on the visual maze grid.
             x, y = ghost.position
             target_x, target_y = self.block_pos[
                 y * 2 + 1
@@ -950,8 +1102,8 @@ class PacManApp:
                     / 1000
                 )
 
-                # Calculate how far through the movement animation
-                # we are, keeping visual and logical positions separate.
+                # Interpolate visual movement between two maze cells.
+                # The ghost's logical position is not changed here.
                 progress = min(
                     1.0,
                     (time.monotonic() - started_at)
@@ -971,15 +1123,15 @@ class PacManApp:
                     origin_y + (target_y - origin_y) * progress
                 )
 
-                # Finished animations no longer need to be stored.
+                # Remove completed visual animations from memory.
                 if progress >= 1.0:
                     self.ghost_visual_moves.pop(ghost, None)
 
-            # Centre the sprite inside the visual maze cell.
+            # Centre each ghost sprite inside its visual maze cell.
             block_width = self.block.get_width()
             block_height = self.block.get_height()
 
-            self.screen.blit(
+            canvas.blit(
                 sprite,
                 (
                     draw_x + center(block_width, dim[0]),
@@ -987,27 +1139,27 @@ class PacManApp:
                 ),
             )
 
-        # The timer can be absent outside a loaded level.
-        timer_surface = self.timer
-
-        if timer_surface is not None:
-            x = (
-                self.screen.get_width()
-                - timer_surface.get_width()
-                - 10
+        # Display the current run statistics in the reserved HUD area.
+        # The HUD reads gameplay values without changing game state.
+        if self.game_state is not None:
+            self.hud.render(
+                canvas,
+                score=self.game_state.score,
+                level=self.game_state.current_level,
+                lives=self.game_state.lives,
+                remaining_time=self.active_level.remaining_time,
+                cheats_used=self.cheat_mode.cheats_used,
             )
 
-            self.screen.blit(timer_surface, (x, 10))
-
-        # UI branch stores (pacgum type, surface) per logical cell.
-        # Collectibles are drawn after disco lighting to remain visible.
+        # Collectibles are drawn after lighting to remain visible.
+        # Their positions use the same logical grid as the characters.
         for position, pacgum in self.active_level.pacgums.items():
             dim = (
                 pacgum[1].get_width(),
                 pacgum[1].get_height(),
             )
 
-            self.screen.blit(
+            canvas.blit(
                 pacgum[1],
                 self.pos(position, dim),
             )
