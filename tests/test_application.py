@@ -959,10 +959,10 @@ def test_ghost_freeze_stops_movement_not_time(
     assert level.remaining_time == 89
 
 
-def test_cheat_keyboard_shortcuts(
+def test_cheat_keyboard_shortcuts_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Verify gameplay keyboard shortcuts toggle the correct cheats."""
+    """Verify old keyboard shortcuts no longer activate cheats."""
 
     app = PacManApp(_test_config())
     _start_test_game(app)
@@ -978,10 +978,6 @@ def test_cheat_keyboard_shortcuts(
         event = pg.event.Event(pg.KEYDOWN, key=key)
         monkeypatch.setattr(pg.event, "get", lambda: [event])
 
-        # First press enables the feature.
-        app._get_events()
-        assert getattr(app.cheat_mode, attribute) is True
-
-        # Second press disables it.
+        # Old shortcuts must not activate cheats.
         app._get_events()
         assert getattr(app.cheat_mode, attribute) is False
