@@ -26,20 +26,23 @@ class Player:
 
         # Gameplay tests can construct a player without initializing graphics.
         # The level factory supplies a path for players drawn by the UI.
-        self.sprite_path: dict[Direction, pg.Surface] = {}
+        self.path = path
 
-        if path is not None:
+    @property
+    def sprite_path(self) -> dict[Direction, pg.Surface]:
+        if self.path is not None:
             # North and south share the front-facing artwork.
-            front = load_trans_image(f"{IMAGES}/player/{path}-front.png")
-            right = load_trans_image(f"{IMAGES}/player/{path}-right.png")
-            left = load_trans_image(f"{IMAGES}/player/{path}-left.png")
+            front = load_trans_image(f"{IMAGES}/player/{self.path}-front.png")
+            right = load_trans_image(f"{IMAGES}/player/{self.path}-right.png")
+            left = load_trans_image(f"{IMAGES}/player/{self.path}-left.png")
 
-            self.sprite_path = {
+            return {
                 Direction.NORTH: front,
                 Direction.SOUTH: front,
                 Direction.EAST: right,
                 Direction.WEST: left,
             }
+        return {}
 
     def reset(self) -> None:
         """Reset the player to its spawn position and direction."""
