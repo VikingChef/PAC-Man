@@ -1075,6 +1075,10 @@ class PacManApp:
         canvas = self.game_canvas
         canvas.fill((24, 18, 38))
 
+        x: int = center(self.screen.get_width(), self.level_bg.get_width())
+        y: int = center(self.screen.get_height(), self.level_bg.get_height())
+        self.screen.blit(self.level_bg, (x, y))
+
         # Draw the maze using positions relative to the logical canvas.
         for i, row in enumerate(self.active_level_layout):
             for j, col in enumerate(row):
