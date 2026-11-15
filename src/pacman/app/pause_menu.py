@@ -79,6 +79,7 @@ class PauseMenu():
             color='white',
             screen=screen
         )
+
         self.change_char: Button = Button(
             'Change Queen',
             self.font,
@@ -105,8 +106,10 @@ class PauseMenu():
         )
         self.screen: pg.Surface = screen
         self.frame: pg.Surface = load_trans_image(f'{IMAGES}/pause-frame.png')
+        self.hover: pg.Surface = load_trans_image(f'{IMAGES}/choose-frame.png')
 
     def render_pause_menu(self) -> None:
+        mx, my = pg.mouse.get_pos()
         self.screen.fill(color='darkgrey', special_flags=pg.BLEND_MULT)
 
         x: int = center(self.screen.get_width(),
@@ -121,7 +124,10 @@ class PauseMenu():
                     self.main_menu.button.get_height()) -
              self.restart_level.button.get_height() - 100)
         self.main_menu.pos = x, y
+        choose_x: int = x - 10
         self.main_menu.render()
+        if self.main_menu.hovering(mx, my):
+            self.screen.blit(self.hover, (choose_x, y - 10))
 
         x = center(self.screen.get_width(),
                    self.restart_level.button.get_width())
@@ -129,6 +135,8 @@ class PauseMenu():
                    self.restart_level.button.get_height()) - 25
         self.restart_level.pos = x, y
         self.restart_level.render()
+        if self.restart_level.hovering(mx, my):
+            self.screen.blit(self.hover, (choose_x, y - 10))
 
         x = center(self.screen.get_width(),
                    self.change_char.button.get_width())
@@ -136,6 +144,8 @@ class PauseMenu():
                    self.change_char.button.get_height()) + 50
         self.change_char.pos = x, y
         self.change_char.render()
+        if self.change_char.hovering(mx, my):
+            self.screen.blit(self.hover, (choose_x, y - 10))
 
         x = center(self.screen.get_width(),
                    self.quit_game.button.get_width())
@@ -144,6 +154,8 @@ class PauseMenu():
              self.change_char.button.get_height() + 100)
         self.quit_game.pos = x, y
         self.quit_game.render()
+        if self.quit_game.hovering(mx, my):
+            self.screen.blit(self.hover, (choose_x, y - 10))
 
     def handle_event(self,
                      event: pg.event.Event) -> PauseMenuAction:
