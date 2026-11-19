@@ -7,3 +7,5 @@ __pycache__/
 mazegenerator/
 # Local VS Code settings
 .vscode/
+/highscores.json
+/highscores.json.backup
