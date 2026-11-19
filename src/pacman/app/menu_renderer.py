@@ -8,6 +8,7 @@ import pygame as pg
 from pacman.app.actions import CharacterSelect, MainMenu
 from pacman.app.highscore_select import HighScoreSelect
 from pacman.app.viewport import fit_canvas, screen_to_canvas
+from pacman.app.instructions_screen import InstructionsScreen
 
 
 def background_frame_index(
@@ -162,4 +163,24 @@ def render_highscore_select(
         total_frame_count,
     )
     menu.render_highscore_select(mouse, canvas)
+    render_menu_canvas(screen, canvas)
+
+
+def render_instructions(
+    screen: pg.Surface,
+    canvas: pg.Surface,
+    background_frames: list[pg.Surface],
+    start_time: float,
+    instructions: InstructionsScreen,
+    total_frame_count: int | None = None,
+) -> None:
+    """Render scrollable instructions over the animated background."""
+    mouse = _prepare_menu(
+        screen,
+        canvas,
+        background_frames,
+        start_time,
+        total_frame_count,
+    )
+    instructions.render(mouse)
     render_menu_canvas(screen, canvas)

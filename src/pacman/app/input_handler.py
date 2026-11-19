@@ -56,6 +56,10 @@ def handle_events(
             _handle_highscores_event(app, event)
             continue
 
+        if app.state == states.INSTRUCTIONS:
+            _handle_instructions_event(app, event)
+            continue
+
         # Escape closes the application outside special interfaces.
         if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
             app.stop()
@@ -98,6 +102,32 @@ def _handle_name_entry_event(
 
     if action is not None:
         app.handle_name_entry_action(action)
+
+
+def _handle_instructions_event(
+    app: PacManApp,
+    event: pg.event.Event,
+) -> None:
+    """Handle scrolling and navigation in the instructions menu."""
+    instruction_event = event
+
+    if event.type == pg.MOUSEBUTTONDOWN:
+        canvas_position = screen_to_canvas(
+            event.pos,
+            app.display.menu_canvas.get_size(),
+            app.display.screen.get_size(),
+        )
+
+        if canvas_position is None:
+            return
+
+        instruction_event = pg.event.Event(
+            event.type,
+            {**event.dict, "pos": canvas_position},
+        )
+
+    if app.instructions_screen.handle_event(instruction_event):
+        app.change_state(type(app.state).MAIN_MENU)
 
 
 def _handle_highscores_event(

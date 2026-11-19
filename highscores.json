@@ -1,0 +1,79 @@
+{
+    "high_scores": [
+        {
+            "initials": "ASS",
+            "score": 5000
+        },
+        {
+            "initials": "FUK",
+            "score": 4200
+        },
+        {
+            "initials": "CNT",
+            "score": 3600
+        },
+        {
+            "initials": "BTM",
+            "score": 3000
+        },
+        {
+            "initials": "DIC",
+            "score": 2500
+        },
+        {
+            "initials": "GAG",
+            "score": 2000
+        },
+        {
+            "initials": "COQ",
+            "score": 1990
+        },
+        {
+            "initials": "TOP",
+            "score": 1500
+        },
+        {
+            "initials": "KNK",
+            "score": 1200
+        },
+        {
+            "initials": "HNG",
+            "score": 900
+        }
+    ],
+    "shame_entries": [
+        {
+            "name": "BIANCA"
+        },
+        {
+            "name": "ROBBIE"
+        },
+        {
+            "name": "SHARON"
+        },
+        {
+            "name": "TYRA"
+        },
+        {
+            "name": "GIA"
+        },
+        {
+            "name": "MILK"
+        },
+        {
+            "name": "PHI PHI"
+        },
+        {
+            "name": "SHERRY PIE"
+        },
+        {
+            "name": "MIMI"
+        },
+        {
+            "name": "EUREKA"
+        },
+        {
+            "name": "JASMINE"
+        }
+    ]
+}

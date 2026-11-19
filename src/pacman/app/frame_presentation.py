@@ -19,6 +19,13 @@ def render_current_frame(
     current_time: float,
 ) -> None:
     """Draw the current application state and its overlays."""
+    if (
+        app.state == states.MAIN_MENU
+        and not app.startup_splash.finished(current_time)
+    ):
+        app.startup_splash.render(current_time)
+        return
+
     if app.state == states.MAIN_MENU:
         app._run_main_menu()
 

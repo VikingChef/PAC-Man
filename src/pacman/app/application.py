@@ -46,6 +46,9 @@ from pacman.game.level_factory import create_level
 from pacman.game.run_finalizer import EntryKind, RunFinalizer
 from pacman.game.state import GameState
 from pacman.maze.direction import Direction
+from pacman.app.instructions_screen import InstructionsScreen
+from pacman.app.menu_renderer import render_instructions
+from pacman.app.startup_splash import StartupSplash
 
 
 class AppState(Enum):
@@ -91,6 +94,8 @@ class PacManApp:
         # AppDisplay owns the game's visual resources.
         self.display = AppDisplay()
 
+        self.startup_splash = StartupSplash(self.display.screen)
+
         # Each menu operates on its appropriate logical canvas.
         self.pause_menu = PauseMenu(self.display.game_canvas)
         self.name_entry = NameEntryScreen(self.display.menu_canvas)
@@ -98,6 +103,10 @@ class PacManApp:
             self.display.menu_canvas
         )
         self.highscore_board = HighScoreBoard(
+            self.display.menu_canvas
+        )
+
+        self.instructions_screen = InstructionsScreen(
             self.display.menu_canvas
         )
 
@@ -364,7 +373,18 @@ class PacManApp:
         self.running = False
 
     def _get_events(self) -> None:
-        """Delegate application input to the input handler."""
+        """Handle startup input or delegate ordinary application input."""
+        if (
+            self.state == AppState.MAIN_MENU
+            and not self.startup_splash.finished(time.monotonic())
+        ):
+            for event in pg.event.get():
+                if event.type == pg.QUIT:
+                    self.running = False
+            return
+
+        handle_events(self, AppState)
+
         handle_events(self, AppState)
 
     def _load_level(
@@ -773,9 +793,15 @@ class PacManApp:
         )
 
     def _run_instructions(self) -> None:
-        """Handle the instructions application state."""
-        # Instructions will use their own scrolling UI.
-        pass
+        """Render instructions over the animated menu background."""
+        render_instructions(
+            self.display.screen,
+            self.display.menu_canvas,
+            self.display.bg,
+            self.start_time,
+            self.instructions_screen,
+            self.display.bg_files,
+        )
 
     def __enter__(self) -> "PacManApp":
         """Return this application as a context manager."""
