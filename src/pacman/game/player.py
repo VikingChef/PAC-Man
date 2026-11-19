@@ -29,17 +29,22 @@ class Player:
         self.sprite_path: dict[Direction, pg.Surface] = {}
 
         if path is not None:
-            # North and south share the front-facing artwork.
-            front = load_trans_image(f"{IMAGES}/player/{path}-front.png")
-            right = load_trans_image(f"{IMAGES}/player/{path}-right.png")
-            left = load_trans_image(f"{IMAGES}/player/{path}-left.png")
+            self.set_sprite(path)
 
-            self.sprite_path = {
-                Direction.NORTH: front,
-                Direction.SOUTH: front,
-                Direction.EAST: right,
-                Direction.WEST: left,
-            }
+    def set_sprite(self, path: str) -> None:
+        """Replace artwork without changing position or movement state."""
+        # Prepare all three surfaces before replacing the current images.
+        # North and south deliberately share the front-facing artwork.
+        front = load_trans_image(f"{IMAGES}/player/{path}-front.png")
+        right = load_trans_image(f"{IMAGES}/player/{path}-right.png")
+        left = load_trans_image(f"{IMAGES}/player/{path}-left.png")
+
+        self.sprite_path = {
+            Direction.NORTH: front,
+            Direction.SOUTH: front,
+            Direction.EAST: right,
+            Direction.WEST: left,
+        }
 
     def reset(self) -> None:
         """Reset the player to its spawn position and direction."""
