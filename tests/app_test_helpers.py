@@ -1,19 +1,21 @@
+
 """Shared application test setup and collision fixtures."""
 
 import pygame as pg
+
 from pacman.app.actions import CharSelectAction
 from pacman.app.application import AppState, PacManApp
+from pacman.app.sprite_animator import SpriteAnimator
 from pacman.config.models import GameConfig, LevelConfig
-from pacman.maze.direction import Direction
-from pacman.maze.maze import Maze
-from pacman.maze.wall import Wall
 from pacman.game.cheat_mode import CheatMode
+from pacman.game.game_session import GameSession
 from pacman.game.ghost import Ghost, GhostIdentity, GhostState
 from pacman.game.level import Level
 from pacman.game.player import Player
 from pacman.game.state import GameState
-from pacman.app.sprite_animator import SpriteAnimator
-from pacman.game.game_session import GameSession
+from pacman.maze.direction import Direction
+from pacman.maze.maze import Maze
+from pacman.maze.wall import Wall
 
 
 def _test_config() -> GameConfig:
@@ -39,12 +41,17 @@ def _test_config() -> GameConfig:
 
 
 def _start_test_game(app: PacManApp) -> None:
-    """Choose a test character before starting the gameplay run."""
+    """Start a playable game without its introductory animation."""
     # Application tests start gameplay directly instead of clicking through
     # the character selection screen. Supply the same valid choice the UI
     # would normally provide, while keeping character selection required.
     app.change_queen(CharSelectAction.WAKA_WAKA_WANDA)
     app.start_new_game()
+
+    # Most tests examine active gameplay rather than the level introduction.
+    # Skip the visual delay so movement, collisions and timers can run.
+    app.level_intro_started_at = None
+    app.change_state(AppState.PLAYING)
 
 
 def create_collision_test_app(
@@ -59,6 +66,7 @@ def create_collision_test_app(
     app.cheat_mode = CheatMode()
     app.game_state = GameState(score=0, lives=lives, current_level=1)
     app.state = AppState.PLAYING
+
     # Collision tests only need the animation state, not a display.
     app.sprite_animator = SpriteAnimator(pg.Surface((16, 16)))
 

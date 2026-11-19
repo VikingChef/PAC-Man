@@ -1,16 +1,22 @@
+
 """Test application ghost collisions and life loss."""
 
+from pathlib import Path
 from types import SimpleNamespace
-import pytest
+
 import pygame as pg
-from pacman.app.application import AppState, PacManApp
-from pacman.maze.direction import Direction
-from pacman.game.ghost import GhostState
-from pacman.game.pacgum import PacgumType
+import pytest
+
 from pacman.app import application as application_module
+from pacman.app.application import AppState, PacManApp
+from pacman.game.ghost import GhostState
+from pacman.game.highscores import HighScoreManager
+from pacman.game.pacgum import PacgumType
+from pacman.game.run_finalizer import RunFinalizer
+from pacman.maze.direction import Direction
 from tests.app_test_helpers import (
-    _test_config,
     _start_test_game,
+    _test_config,
     create_collision_test_app,
 )
 
@@ -52,6 +58,7 @@ def test_multiple_frightened_ghosts_award_points() -> None:
     assert app.active_level is not None
     assert app.game_state.score == 400
     assert app.game_state.lives == 3
+
     for ghost in app.active_level.ghosts:
         assert ghost.state == GhostState.EATEN
 
@@ -86,12 +93,17 @@ def test_enraged_collision_takes_priority() -> None:
         assert ghost.state == GhostState.ENRAGED
 
 
-def test_final_life_collision_ends_game() -> None:
+def test_final_life_collision_ends_game(tmp_path: Path) -> None:
     """The final life ends only after the visible death transition."""
     app = create_collision_test_app(
         [GhostState.ENRAGED],
         lives=1,
     )
+
+    # This lightweight test fixture needs the new run finalizer.
+    manager = HighScoreManager(str(tmp_path / "scores.json"))
+    app.run_finalizer = RunFinalizer(manager)
+    app.run_finalizer.start_run()
 
     assert app.game_state is not None
 
@@ -106,6 +118,7 @@ def test_final_life_collision_ends_game() -> None:
     assert app.game_state.lives == 0
     assert app.state == AppState.GAME_OVER
     assert app.death_started_at is None
+    assert app.run_finalizer.run_finalized is True
 
 
 def test_player_movement_into_enraged_ghost_loses_life() -> None:
@@ -163,32 +176,39 @@ def test_super_pacgum_activates_before_ghost_collision() -> None:
     """Verify a super-pacgum makes a ghost edible before collision."""
     app = PacManApp(_test_config())
     _start_test_game(app)
+
     assert app.active_level is not None
     assert app.game_state is not None
 
     level = app.active_level
     player = level.player
     ghost = level.ghosts[0]
+
     direction = next(
         direction for direction in Direction
         if level.maze.can_move(player.position, direction)
     )
+
     dx, dy = direction.value
     x, y = player.position
     destination = (x + dx, y + dy)
-    # The super-pacgum must be collected before resolving the ghost collision.
+
+    # The super-pacgum must be collected before ghost collision.
     ghost.position = destination
     ghost.state = GhostState.ENRAGED
     level.pacgums[destination] = (
-        PacgumType.SUPER_PACGUM, pg.Surface((1, 1))
+        PacgumType.SUPER_PACGUM,
+        pg.Surface((1, 1)),
     )
 
     moved = app.move_player(direction)
     assert moved is True
+
     expected_score = (
         app.config.points_per_super_pacgum
         + app.config.points_per_ghost
     )
+
     assert app.game_state.score == expected_score
     assert app.game_state.lives == 3
     assert app.state == AppState.PLAYING
@@ -252,17 +272,16 @@ def test_ghost_movement_collision_loses_one_life(
 
     app.run()
 
-    # Even with three movement intervals available,
-    # the first collision must stop further ghost movement.
+    # One collision must stop further ghost movement.
     assert movement_calls == 1
     assert app.state == AppState.DYING
     assert app.game_state.lives == 3
 
-    # The ghost and player must share the collision cell.
+    # Both characters must occupy the collision cell.
     assert ghost.position == player.position
     assert app.death_started_at is not None
 
-    # Life loss happens only after the visible collision.
+    # Life loss happens after the visible collision.
     app._finish_death()
 
     assert app.game_state.lives == 2

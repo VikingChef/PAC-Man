@@ -1,3 +1,4 @@
+
 """Application orchestrator for Pac-Man."""
 
 import time
@@ -9,34 +10,42 @@ import pygame as pg
 
 from pacman.app.actions import CharSelectAction
 from pacman.app.actions import MainMenuAction, center
-from pacman.config.models import GameConfig, LevelConfig
-from pacman.game.level import Level
-from pacman.game.level_factory import create_level
-from pacman.game.state import GameState
-from pacman.maze.direction import Direction
-from pacman.game.cheat_mode import CheatMode
+from pacman.app.app_display import AppDisplay
 from pacman.app.cheat_code import CheatCode
 from pacman.app.cheat_panel import CheatPanel
-from pacman.app.game_renderer import (
-    render_game,
+from pacman.app.frame_presentation import render_current_frame
+from pacman.app.game_renderer import render_game
+from pacman.app.highscore_board import HighScoreBoard
+from pacman.app.highscore_select import (
+    HighScoreSelect,
+    HighScoreSelectAction,
 )
-from pacman.app.menu_renderer import (
-    render_character_select,
-    render_main_menu,
-)
-from pacman.game.gameplay import GameplayUpdater
+from pacman.app.input_handler import handle_events
 from pacman.app.maze_view import (
     build_maze_layout,
     calculate_block_positions,
 )
-from pacman.app.input_handler import handle_events
-from pacman.app.frame_presentation import render_current_frame
+from pacman.app.menu_renderer import (
+    render_character_select,
+    render_highscore_select,
+    render_main_menu,
+    render_menu_canvas,
+)
+from pacman.app.name_entry import NameEntryAction, NameEntryScreen
+from pacman.app.pause_menu import PauseMenu, PauseMenuAction
+from pacman.app.sprite_animator import SpriteAnimator
+from pacman.app.viewport import render_canvas, screen_to_canvas
+from pacman.config.models import GameConfig, LevelConfig
+from pacman.game.cheat_mode import CheatMode
 from pacman.game.collision_rules import CollisionOutcome
 from pacman.game.game_session import GameSession
-from pacman.app.app_display import AppDisplay
-from pacman.app.sprite_animator import SpriteAnimator
-from pacman.app.pause_menu import PauseMenu, PauseMenuAction
-from pacman.app.viewport import screen_to_canvas
+from pacman.game.gameplay import GameplayUpdater
+from pacman.game.highscores import HighScoreManager
+from pacman.game.level import Level
+from pacman.game.level_factory import create_level
+from pacman.game.run_finalizer import EntryKind, RunFinalizer
+from pacman.game.state import GameState
+from pacman.maze.direction import Direction
 
 
 class AppState(Enum):
@@ -44,6 +53,7 @@ class AppState(Enum):
 
     MAIN_MENU = auto()
     PLAYING = auto()
+    LEVEL_INTRO = auto()
     DYING = auto()
     PAUSED = auto()
     TIMEOUT = auto()
@@ -68,29 +78,46 @@ class PacManApp:
         self.running = True
         self.start_time = time.time() * 1000
 
-        # Gameplay state is created after character selection.
+        # Gameplay and leaderboard decisions have separate owners.
         self.session = GameSession(config)
+        self.high_score_manager = HighScoreManager(
+            config.highscore_filename
+        )
+        self.run_finalizer = RunFinalizer(self.high_score_manager)
+
         self.queen_chosen: CharSelectAction | None = None
-        # Character selection can also be opened from a paused run.
         self.changing_queen = False
 
-        # AppDisplay creates and owns the visual resources.
+        # AppDisplay owns the game's visual resources.
         self.display = AppDisplay()
+
+        # Each menu operates on its appropriate logical canvas.
         self.pause_menu = PauseMenu(self.display.game_canvas)
+        self.name_entry = NameEntryScreen(self.display.menu_canvas)
+        self.highscore_select = HighScoreSelect(
+            self.display.menu_canvas
+        )
+        self.highscore_board = HighScoreBoard(
+            self.display.menu_canvas
+        )
+
+        # None means the two-button Hall selection screen is visible.
+        self.active_highscore_board: EntryKind | None = None
         self.pause_background: pg.Surface | None = None
 
-        # Maze geometry is rebuilt whenever the level changes.
+        # Maze geometry changes whenever a level is loaded.
         self.active_level_layout: list[list[str]] = []
         self.block_pos: list[list[tuple[int, int]]] = []
 
-        # Keep visual interpolation separate from logical maze movement.
+        # Keep visual movement separate from logical movement.
         self.sprite_animator = SpriteAnimator(self.display.block)
 
         # Timed transitions must not block the main loop.
         self.timeout_started_at: float | None = None
         self.death_started_at: float | None = None
+        self.level_intro_started_at: float | None = None
 
-        # Cheats retain their existing scoring callback.
+        # Cheats retain their existing score-invalidation callback.
         self.cheat_mode = CheatMode(self._reset_score_after_cheat)
         self.cheat_code = CheatCode()
         self.cheat_panel_open = False
@@ -130,7 +157,7 @@ class PacManApp:
 
     @property
     def bg_pos(self) -> tuple[int, int]:
-        """Center the loaded background within the physical display."""
+        """Center the background within the physical display."""
         if self.display.bg == []:
             return (0, 0)
 
@@ -146,7 +173,7 @@ class PacManApp:
 
     @property
     def timer(self) -> pg.Surface | None:
-        """Render the remaining level time for the HUD, if available."""
+        """Render the remaining level time for the HUD."""
         if self.active_level is None:
             return None
 
@@ -167,14 +194,14 @@ class PacManApp:
             elapsed_time = current_time - previous_time
             previous_time = current_time
 
-            # Capture state before input can change it.
+            # Capture state before input changes it.
             previous_state = self.state
             previous_panel_open = self.cheat_panel_open
 
             self._load_bg()
             self._get_events()
 
-            # The gameplay layer manages level and ghost timing.
+            # The gameplay layer manages movement and timing.
             timed_out = gameplay.update(
                 level=self.active_level,
                 game_state=self.game_state,
@@ -195,7 +222,7 @@ class PacManApp:
                 self.timeout_started_at = current_time
                 self.change_state(AppState.TIMEOUT)
 
-            # Presentation decides which screen and overlays to draw.
+            # Screen presentation remains in the existing renderer.
             render_current_frame(
                 self,
                 AppState,
@@ -215,14 +242,63 @@ class PacManApp:
 
     def change_state(self, new_state: AppState) -> None:
         """Change the current application state."""
-
-        # Keep all application state transitions in one place.
         self.state = new_state
+
+    def _finalize_run(self, abandoned: bool = False) -> bool:
+        """Finalize a run and open name entry when appropriate."""
+        if self.game_state is None:
+            return False
+
+        needs_name = self.run_finalizer.finish_run(
+            score=self.game_state.score,
+            cheats_used=self.cheat_mode.cheats_used,
+            abandoned=abandoned,
+        )
+
+        if needs_name:
+            # The finalizer determines which leaderboard is pending.
+            kind = self.run_finalizer.pending_kind
+            if kind is None:
+                return False
+
+            self.name_entry.begin(kind)
+            self.cheat_panel_open = False
+            self.change_state(AppState.NAME_ENTRY)
+
+        return needs_name
+
+    def submit_high_score_name(self, name: str) -> bool:
+        """Submit a completed name and return to the main menu."""
+        if not self.run_finalizer.submit_name(name):
+            return False
+
+        self.change_state(AppState.MAIN_MENU)
+        return True
+
+    def handle_name_entry_action(
+        self,
+        action: NameEntryAction,
+    ) -> None:
+        """Handle submission or abandonment of leaderboard entry."""
+        if self.state != AppState.NAME_ENTRY:
+            return
+
+        if action == NameEntryAction.SUBMIT:
+            # Invalid names leave the entry screen open for correction.
+            self.submit_high_score_name(self.name_entry.name)
+
+        elif action == NameEntryAction.MAIN_MENU:
+            # Refusing to identify yourself earns the name ASS.
+            self.submit_high_score_name("ASS")
+
+        elif action == NameEntryAction.EXIT:
+            # Escape saves the default entry before exiting.
+            if self.run_finalizer.submit_name("ASS"):
+                self.running = False
 
     def pause_game(self) -> None:
         """Pause the game during gameplay."""
         if self.state == AppState.PLAYING:
-            # Retain the already-rendered frame to freeze visual movement.
             self.pause_background = self.display.game_canvas.copy()
             self.change_state(AppState.PAUSED)
 
@@ -239,20 +315,26 @@ class PacManApp:
 
         if action == PauseMenuAction.RESUME_GAME:
             self.resume_game()
+
         elif action == PauseMenuAction.BACK_TO_MAIN_MENU:
             self.pause_background = None
-            self.change_state(AppState.MAIN_MENU)
+
+            if not self._finalize_run(abandoned=True):
+                self.change_state(AppState.MAIN_MENU)
+
         elif action == PauseMenuAction.CHANGE_QUEEN:
-            # Keep the current run intact while the player selects artwork.
+            # Character changes must preserve the current run.
             self.changing_queen = True
             self.change_state(AppState.CHAR_SELECT)
+
         elif action == PauseMenuAction.QUIT_GAME:
             self.stop()
+
         elif action == PauseMenuAction.RESTART_LEVEL:
             if self.game_state is None:
                 return
-            # Rewind current-level points, retaining completed-level
-            # points and the player's remaining lives.
+
+            # Restart current-level points without losing earlier ones.
             self.session.restart_level()
             level_config = self.config.levels[
                 self.game_state.current_level - 1
@@ -262,15 +344,23 @@ class PacManApp:
                 seed=randint(0, 2**31 - 1),
             )
             self.pause_background = None
-            self.change_state(AppState.PLAYING)
 
     def change_queen(self, new_queen: CharSelectAction) -> None:
+        """Remember the currently selected playable queen."""
         self.queen_chosen = new_queen
 
     def stop(self) -> None:
-        """Stop the Pac-Man application."""
+        """Finish a pending entry or handle an ordinary quit."""
+        if self.state == AppState.NAME_ENTRY:
+            # Window close during name entry defaults to ASS.
+            if self.run_finalizer.submit_name("ASS"):
+                self.running = False
+            return
 
-        # End the main application loop cleanly.
+        # An ordinary quit records an abandoned cheated run.
+        if self._finalize_run(abandoned=True):
+            return
+
         self.running = False
 
     def _get_events(self) -> None:
@@ -282,16 +372,13 @@ class PacManApp:
         level_config: LevelConfig,
         seed: int,
     ) -> None:
-        """Create and prepare a level using its configuration and maze seed."""
-
-        # All game starts, level advances and retries use this single path.
-        # The UI must choose a character before any level can be loaded.
+        """Create and prepare a level using its configuration."""
         if self.queen_chosen is None:
             raise ValueError(
-                'Cannot create a level without a selected character.'
+                "Cannot create a level without a selected character."
             )
 
-        # The session owns level creation and the logical level state.
+        # The session owns level creation and logical state.
         level = self.session.load_level(
             level_config,
             seed,
@@ -299,53 +386,52 @@ class PacManApp:
             create_level,
         )
 
-        # Build the visual maze independently of application control.
+        # Build the visual maze independently of game control.
         self.active_level_layout = build_maze_layout(level)
         self.block_pos = calculate_block_positions(
             self.active_level_layout,
             self.display.block,
         )
 
-        # Clear visual movement left over from the previous level.
+        # Clear movement animations from the previous level.
         self.sprite_animator.reset(self.block_pos)
+
+        # Show the one-second level introduction.
+        self.level_intro_started_at = time.monotonic()
+        self.change_state(AppState.LEVEL_INTRO)
 
     def start_new_game(self) -> None:
         """Start a fresh run and prepare its first level."""
         self.changing_queen = False
-        # A new run clears previous cheat settings and scoring locks.
+
+        # New runs clear every previous cheat setting.
         self.cheat_mode = CheatMode(self._reset_score_after_cheat)
 
-        # The session owns the initial score, lives and level.
+        # Reset gameplay and leaderboard finalization together.
         self.session.start_run()
+        self.run_finalizer.start_run()
 
         first_level_config = self.config.levels[0]
 
-        # The app prepares the Pygame level and visual maze.
         self._load_level(
             level_config=first_level_config,
             seed=self.config.seed,
         )
 
-        self.change_state(AppState.PLAYING)
-
     def _load_bg(self) -> None:
         """Advance loading-screen background frames."""
-        # Read the next frame from the display's background generator.
         frame: pg.Surface | None = next(
             self.display.frame_gen,
             None,
         )
 
         if frame is not None:
-            # Store the frame with the other display resources.
             self.display.bg.append(frame)
 
-            # Start both background and title animations when the first
-            # frame arrives. Do not reset their clocks for later frames.
+            # Begin animation timing when the first frame arrives.
             if len(self.display.bg) == 1:
                 self.start_time = time.time() * 1000
 
-            # Preserve the existing loading progress calculation.
             self.display.loading.render_bar(
                 min(
                     4,
@@ -362,12 +448,15 @@ class PacManApp:
         self.session.award_points(self.cheat_mode, points)
 
     def move_player(self, direction: Direction) -> bool:
-        """Coordinate player movement and its application transitions."""
+        """Coordinate player movement and application transitions."""
         level = self.active_level
         if level is None or self.game_state is None:
             return False
 
-        result = self.session.move_player(direction, self.cheat_mode)
+        result = self.session.move_player(
+            direction,
+            self.cheat_mode,
+        )
         if not result.moved:
             return False
 
@@ -379,7 +468,7 @@ class PacManApp:
                 time.monotonic(),
             )
 
-        # Progress only after completing the current maze.
+        # Advance only after the maze is complete.
         if result.level_complete:
             self._advance_level()
 
@@ -392,21 +481,15 @@ class PacManApp:
         if self.active_level is None or self.game_state is None:
             return
 
-        # Collisions cannot interrupt an existing death transition.
         if self.state != AppState.PLAYING:
             return
 
         outcome = self.session.check_collision(self.cheat_mode)
-
         if outcome != CollisionOutcome.PLAYER_CAUGHT:
             return
 
-        # The gameplay rules identified a fatal collision.
-        # Display it before deducting the player's life.
+        # Display the collision before deducting a life.
         self.death_started_at = time.monotonic()
-
-        # Stop interpolating the colliding characters so their
-        # sprites meet at their shared logical position.
         self.sprite_animator.stop_player_move()
 
         for ghost in self.active_level.check_ghost_collision():
@@ -415,22 +498,20 @@ class PacManApp:
         self.change_state(AppState.DYING)
 
     def _finish_death(self) -> None:
-        """Complete the death transition and update the screen state."""
+        """Complete the death transition and update game state."""
         if self.game_state is None or self.active_level is None:
             return
 
         game_over = self.session.finish_death()
-
         self.death_started_at = None
 
         if game_over:
-            self.change_state(AppState.GAME_OVER)
+            if not self._finalize_run():
+                self.change_state(AppState.GAME_OVER)
             return
 
-        # Clear animations after the gameplay layer has respawned
-        # the player and ghosts.
+        # Clear animations after the gameplay layer respawns.
         self.sprite_animator.reset()
-
         self.change_state(AppState.PLAYING)
 
     def _advance_level(self) -> None:
@@ -441,7 +522,8 @@ class PacManApp:
         next_level_config = self.session.advance_level()
 
         if next_level_config is None:
-            self.change_state(AppState.VICTORY)
+            if not self._finalize_run():
+                self.change_state(AppState.VICTORY)
             return
 
         # Preserve the existing random seed behaviour.
@@ -458,49 +540,80 @@ class PacManApp:
             return
 
         self.timeout_started_at = None
-
         current_level_config = self.session.resolve_timeout()
 
         if current_level_config is None:
-            self.change_state(AppState.GAME_OVER)
+            if not self._finalize_run():
+                self.change_state(AppState.GAME_OVER)
             return
 
-        # Restart the same level with a fresh random maze seed.
+        # Restart the current level with a fresh maze.
         self._load_level(
             level_config=current_level_config,
             seed=randint(0, 2**31 - 1),
         )
 
-        self.change_state(AppState.PLAYING)
-
     def _handle_main_menu_action(
         self,
         action: MainMenuAction,
     ) -> None:
-        """Handle an action selected from the main menu."""
-
-        # Translate UI choices into application behaviour.
+        """Handle actions selected from the main menu."""
         if action == MainMenuAction.START_GAME:
             self.change_state(AppState.CHAR_SELECT)
+
         elif action == MainMenuAction.VIEW_HIGHSCORES:
+            # Always enter through the two illustrated Hall buttons.
+            self.active_highscore_board = None
             self.change_state(AppState.HIGHSCORES)
+
         elif action == MainMenuAction.SHOW_INSTRUCTIONS:
             self.change_state(AppState.INSTRUCTIONS)
+
         elif action == MainMenuAction.EXIT:
             self.stop()
+
+    def handle_highscores_event(
+        self,
+        event: pg.event.Event,
+    ) -> None:
+        """Navigate between the Hall selection and its two boards."""
+        if self.state != AppState.HIGHSCORES:
+            return
+
+        # Escape goes back one screen instead of quitting the game.
+        if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
+            if self.active_highscore_board is not None:
+                self.active_highscore_board = None
+            else:
+                self.change_state(AppState.MAIN_MENU)
+            return
+
+        if self.active_highscore_board is None:
+            # The selection screen reports which Hall was chosen.
+            action = self.highscore_select.handle_event(event)
+
+            if action == HighScoreSelectAction.HALL_OF_FAME:
+                self.active_highscore_board = EntryKind.FAME
+
+            elif action == HighScoreSelectAction.HALL_OF_SHAME:
+                self.active_highscore_board = EntryKind.SHAME
+
+            elif action == HighScoreSelectAction.MAIN_MENU:
+                self.change_state(AppState.MAIN_MENU)
+
+        else:
+            # Both leaderboard screens use the same Back control.
+            if self.highscore_board.handle_event(event):
+                self.active_highscore_board = None
 
     def _handle_char_select_action(
         self,
         action: CharSelectAction,
     ) -> None:
-        """Handle events coming from the Character Selection Menu.
-        Args:
-            action (CharSelectAction): Action (clicks) in character
-                                       selection menu.
-        """
+        """Handle actions from character selection."""
         if action == CharSelectAction.MAIN_MENU:
             if self.changing_queen:
-                # Back returns to the paused run, not the main menu.
+                # Back returns to the paused game.
                 self.changing_queen = False
                 self.change_state(AppState.PAUSED)
             else:
@@ -514,12 +627,13 @@ class PacManApp:
             return
 
         if self.changing_queen:
-            # Only change the live player's artwork. Never reload its maze,
-            # regenerate collectibles or reset the run's score and timers.
+            # Change only artwork, never the ongoing run.
             if self.active_level is None:
                 return
+
             sprite_name = (
-                "waka" if action == CharSelectAction.WAKA_WAKA_WANDA
+                "waka"
+                if action == CharSelectAction.WAKA_WAKA_WANDA
                 else "ms-pellet"
             )
             self.active_level.player.set_sprite(sprite_name)
@@ -529,13 +643,12 @@ class PacManApp:
             self.change_state(AppState.PLAYING)
             return
 
-        # Choosing a character from the main menu still starts a new run.
+        # A selection from the main menu starts a fresh run.
         self.change_queen(action)
         self.start_new_game()
 
     def _run_main_menu(self) -> None:
-        """Render the main menu over a fullscreen animated background."""
-        # Delegate background, hover coordinates and menu scaling.
+        """Render the main menu over its animated background."""
         render_main_menu(
             self.display.screen,
             self.display.menu_canvas,
@@ -547,7 +660,6 @@ class PacManApp:
 
     def _run_char_select(self) -> None:
         """Render character selection over the animated background."""
-        # Use the same presentation pipeline as the main menu.
         render_character_select(
             self.display.screen,
             self.display.menu_canvas,
@@ -562,8 +674,6 @@ class PacManApp:
         if self.active_level is None:
             return
 
-        # The application supplies the current gameplay and visual state.
-        # The renderer owns how those elements appear on the canvas.
         render_game(
             canvas=self.display.game_canvas,
             level=self.active_level,
@@ -579,59 +689,96 @@ class PacManApp:
         )
 
     def _run_pause_menu(self) -> None:
-        """Handle the paused application state."""
-
-        # The frozen frame prevents animations advancing behind the menu.
+        """Render the paused application state."""
         if self.pause_background is not None:
-            self.display.game_canvas.blit(self.pause_background, (0, 0))
+            self.display.game_canvas.blit(
+                self.pause_background,
+                (0, 0),
+            )
         else:
             self._run_game()
 
-        # Hover coordinates must match the scaled gameplay canvas.
         mouse_position = screen_to_canvas(
             pg.mouse.get_pos(),
             self.display.game_canvas.get_size(),
             self.display.screen.get_size(),
         )
         self.pause_menu.render_pause_menu(
-            mouse_position if mouse_position is not None else (-1, -1)
+            mouse_position
+            if mouse_position is not None
+            else (-1, -1)
         )
 
     def _run_game_over(self) -> None:
         """Handle the game-over application state."""
-
-        # Game-over presentation and transition will connect here.
+        # Game-over presentation remains a separate UI task.
         pass
 
     def _run_victory(self) -> None:
         """Handle the victory application state."""
-
-        # Victory presentation and transition will connect here.
+        # Victory presentation remains a separate UI task.
         pass
 
     def _run_name_entry(self) -> None:
-        """Handle highscore name entry."""
+        """Render high-score name entry on the logical menu canvas."""
+        mouse_position = screen_to_canvas(
+            pg.mouse.get_pos(),
+            self.display.menu_canvas.get_size(),
+            self.display.screen.get_size(),
+        )
 
-        # Highscore name input will connect to the UI layer here.
-        pass
+        self.name_entry.render(
+            mouse_position
+            if mouse_position is not None
+            else (-1, -1)
+        )
+
+        render_canvas(
+            self.display.menu_canvas,
+            self.display.screen,
+        )
 
     def _run_highscores(self) -> None:
-        """Handle the highscore application state."""
+        """Render Hall selection or the chosen illustrated board."""
+        if self.active_highscore_board is None:
+            # The choice screen shares the main menu's animated backdrop.
+            render_highscore_select(
+                self.display.screen,
+                self.display.menu_canvas,
+                self.display.bg,
+                self.start_time,
+                self.highscore_select,
+                self.display.bg_files,
+            )
+            return
 
-        # Highscore presentation will connect to the UI layer here.
-        pass
+        # Individual Hall artwork replaces the animated background.
+        mouse_position = screen_to_canvas(
+            pg.mouse.get_pos(),
+            self.display.menu_canvas.get_size(),
+            self.display.screen.get_size(),
+        )
+
+        self.highscore_board.render(
+            self.active_highscore_board,
+            self.high_score_manager,
+            mouse_position
+            if mouse_position is not None
+            else (-1, -1),
+        )
+
+        render_menu_canvas(
+            self.display.screen,
+            self.display.menu_canvas,
+        )
 
     def _run_instructions(self) -> None:
         """Handle the instructions application state."""
-
-        # Instruction presentation will connect to the UI layer here.
+        # Instructions will use their own scrolling UI.
         pass
 
     def __enter__(self) -> "PacManApp":
-        """Dunder method for context managers.
-        Returns:
-            PacManApp: PacManApp object
-        """
+        """Return this application as a context manager."""
         return self
 
     def __exit__(
@@ -640,12 +787,5 @@ class PacManApp:
         exc: BaseException | None,
         tb: TracebackType | None,
     ) -> None:
-        """Dunder method for context managers.
-        Args:
-            exc_type (type[BaseException] | None): Class of the exception
-                raised inside the ``with`` block, or None if it exited
-                normally.
-            exc (BaseException | None): The exception instance, or None.
-            tb (TracebackType | None): Traceback of the exception, or None.
-        """
+        """Release Pygame resources after application shutdown."""
         pg.quit()

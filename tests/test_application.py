@@ -88,7 +88,9 @@ def test_character_select_action_starts_new_game(
     assert app.queen_chosen == queen
     assert app.game_state is not None
     assert app.active_level is not None
-    assert app.state == AppState.PLAYING
+    # Character selection starts the level introduction.
+    # Gameplay begins only after the announcement finishes.
+    assert app.state == AppState.LEVEL_INTRO
 
 
 def test_highscores_action_opens_highscores() -> None:

@@ -4,7 +4,9 @@
 import time
 
 import pygame as pg
+
 from pacman.app.actions import CharacterSelect, MainMenu
+from pacman.app.highscore_select import HighScoreSelect
 from pacman.app.viewport import fit_canvas, screen_to_canvas
 
 
@@ -109,9 +111,13 @@ def render_main_menu(
     total_frame_count: int | None = None,
 ) -> None:
     """Present the animated main menu and its interactive buttons."""
-    # Keep the title animation and hover detection on one logical canvas.
+    # Keep title animation and hover detection on one logical canvas.
     mouse = _prepare_menu(
-        screen, canvas, background_frames, start_time, total_frame_count
+        screen,
+        canvas,
+        background_frames,
+        start_time,
+        total_frame_count,
     )
     menu.render_main_menu(start_time, mouse, canvas)
     render_menu_canvas(screen, canvas)
@@ -128,7 +134,32 @@ def render_character_select(
     """Present character selection with the shared menu background."""
     # Character artwork uses the same fitted canvas as the main menu.
     mouse = _prepare_menu(
-        screen, canvas, background_frames, start_time, total_frame_count
+        screen,
+        canvas,
+        background_frames,
+        start_time,
+        total_frame_count,
     )
     menu.render_char_select(mouse, canvas)
+    render_menu_canvas(screen, canvas)
+
+
+def render_highscore_select(
+    screen: pg.Surface,
+    canvas: pg.Surface,
+    background_frames: list[pg.Surface],
+    start_time: float,
+    menu: HighScoreSelect,
+    total_frame_count: int | None = None,
+) -> None:
+    """Present both halls over the existing animated background."""
+    # Reuse the menu animation, mouse mapping and scaling pipeline.
+    mouse = _prepare_menu(
+        screen,
+        canvas,
+        background_frames,
+        start_time,
+        total_frame_count,
+    )
+    menu.render_highscore_select(mouse, canvas)
     render_menu_canvas(screen, canvas)

@@ -143,7 +143,12 @@ def test_ghost_freeze_stops_movement_not_time(
         "flip",
         lambda: None,
     )
-    monkeypatch.setattr(app, "_run_game", app.stop)
+
+    def end_test_frame() -> None:
+        """End the simulated frame without invoking game exit logic."""
+        app.running = False
+
+    monkeypatch.setattr(app, "_run_game", end_test_frame)
 
     app.run()
 
