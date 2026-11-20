@@ -73,6 +73,9 @@ class PauseMenu():
                  screen: pg.Surface) -> None:
         self.font: pg.font.Font = pg.font.Font(
          "src/pacman/app/assets/PressStart2P-Regular.ttf", 20)
+        self.italics_font: pg.font.Font = pg.font.Font(
+         "src/pacman/app/assets/PressStart2P-Regular.ttf", 10)
+        self.italics_font.italic = True
         self.main_menu: Button = Button(
             'Back to Main Menu',
             self.font,
@@ -107,6 +110,7 @@ class PauseMenu():
         self.screen: pg.Surface = screen
         self.frame: pg.Surface = load_trans_image(f'{IMAGES}/pause-frame.png')
         self.hover: pg.Surface = load_trans_image(f'{IMAGES}/choose-frame.png')
+        self.hint: pg.Surface = self.italics_font.render('Press [SPACE] to unpause.', True, color='white')
 
     def render_pause_menu(self) -> None:
         mx, my = pg.mouse.get_pos()
@@ -119,10 +123,14 @@ class PauseMenu():
         self.screen.blit(self.frame, (x, y))
 
         x = center(self.screen.get_width(),
+                   self.hint.get_width())
+        self.screen.blit(self.hint, (x, y + 80))
+
+        x = center(self.screen.get_width(),
                    self.main_menu.button.get_width())
         y = (center(self.screen.get_height(),
                     self.main_menu.button.get_height()) -
-             self.restart_level.button.get_height() - 100)
+             self.restart_level.button.get_height() * 2 - 50)
         self.main_menu.pos = x, y
         choose_x: int = x - 10
         self.main_menu.render()
@@ -131,8 +139,9 @@ class PauseMenu():
 
         x = center(self.screen.get_width(),
                    self.restart_level.button.get_width())
-        y = center(self.screen.get_height(),
-                   self.restart_level.button.get_height()) - 25
+        y = (center(self.screen.get_height(),
+                   self.restart_level.button.get_height())
+            - self.restart_level.button.get_height())
         self.restart_level.pos = x, y
         self.restart_level.render()
         if self.restart_level.hovering(mx, my):
