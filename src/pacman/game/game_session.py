@@ -27,18 +27,37 @@ class GameSession:
         self.game_state: GameState | None = None
         self.active_level: Level | None = None
         self.level_start_score = 0
+        self.mercy_used = False
+        self.current_level_seed: int | None = None
 
     def start_run(self) -> None:
         """Begin a fresh run with the configured score and lives."""
         self.game_state = run_lifecycle.create_run(self.config)
         self.active_level = None
         self.level_start_score = 0
+        self.mercy_used = False
 
     def restart_level(self) -> None:
         """Discard points earned since the current level began."""
         if self.game_state is not None:
             # A retry must never recover points invalidated by cheating.
             self.game_state.score = self.level_start_score
+
+    def request_mercy(self) -> bool:
+        """Grant one three-life pardon after the run ends."""
+        if self.game_state is None:
+            return False
+
+        # Mercy is available only once, after the final life is lost.
+        if self.mercy_used or self.game_state.lives > 0:
+            return False
+
+        # Preserve completed-level points, not repeated collectibles.
+        self.restart_level()
+
+        self.game_state.lives = 3
+        self.mercy_used = True
+        return True
 
     def load_level(
         self,
@@ -56,6 +75,8 @@ class GameSession:
             pacgum_count=self.config.pacgum,
             player_sprite=queen,
         )
+        # Retain the seed so mercy can recreate the same maze.
+        self.current_level_seed = seed
         self.active_level = level
         return level
 

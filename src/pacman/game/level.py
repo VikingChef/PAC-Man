@@ -57,15 +57,12 @@ class Level:
                 ghost.state = GhostState.FRIGHTENED
 
     def move_ghosts(self) -> None:
-        """Move each active ghost one cell according to its AI behaviour."""
-
-        # Calculate shortest-path distances from Pac-Man's position.
+        """Move active ghosts without entering another ghost's cell."""
         distances = calculate_distances(
             self.maze,
             self.player.position,
         )
 
-        # Move active ghosts; eaten ghosts wait for their respawn.
         for ghost in self.ghosts:
             if ghost.state == GhostState.EATEN:
                 continue
@@ -76,8 +73,26 @@ class Level:
                 distances,
             )
 
-            if direction is not None:
-                ghost.move(self.maze, direction)
+            if direction is None:
+                continue
+
+            dx, dy = direction.value
+            x, y = ghost.position
+            destination = (x + dx, y + dy)
+
+            # Prevent an active ghost entering an occupied cell.
+            occupied = any(
+                other is not ghost
+                and other.state != GhostState.EATEN
+                and other.position == destination
+                for other in self.ghosts
+            )
+
+            # Wait until the blocking ghost moves away.
+            if occupied:
+                continue
+
+            ghost.move(self.maze, direction)
 
     def check_ghost_collision(self) -> list[Ghost]:
         """Return all ghosts occupying the player's position."""

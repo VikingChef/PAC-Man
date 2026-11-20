@@ -261,8 +261,8 @@ class NameEntryScreen:
         self._draw_buttons(mouse_position)
 
         self._draw_text(
-            "NO NAME? WE'LL CALL YOU ASS.",
+            "(NO NAME? WE'LL CALL YOU ASS.)",
             self.small_font,
             self.white,
-            middle + 195,
+            middle + 165,
         )

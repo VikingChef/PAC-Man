@@ -799,3 +799,90 @@ def test_reset_positions_preserves_level_progress() -> None:
     assert level.frightened_timer == 0
     assert level.remaining_time == 87
     assert level.pacgums == {}
+
+
+def test_ghost_waits_for_occupied_cell() -> None:
+    """Verify a ghost waits until another ghost clears its path."""
+    config = LevelConfig(number=1, width=3, height=3)
+    maze = Maze([
+        [Wall.NONE for _ in range(3)]
+        for _ in range(3)
+    ])
+    player = Player((2, 1), Direction.WEST)
+
+    # The follower wants to move east, but the leader blocks it.
+    follower = Ghost(
+        (0, 1),
+        GhostIdentity.EGO_MACHINE,
+        Direction.EAST,
+    )
+    leader = Ghost(
+        (1, 1),
+        GhostIdentity.ORANGE_PUNCHLINE,
+        Direction.EAST,
+    )
+
+    # Process the follower first so it encounters the blockage.
+    level = Level(
+        config=config,
+        maze=maze,
+        player=player,
+        ghosts=[follower, leader],
+        time_limit=90,
+        pacgums={},
+    )
+
+    level.move_ghosts()
+
+    # The follower waits while the leader advances.
+    assert follower.position == (0, 1)
+    assert leader.position == (2, 1)
+
+    level.move_ghosts()
+
+    # The previously occupied cell is now available.
+    assert follower.position == (1, 1)
+    assert follower.position != leader.position
+
+
+def test_ghosts_cannot_enter_same_destination() -> None:
+    """Verify two ghosts cannot move into the same cell."""
+    config = LevelConfig(number=1, width=3, height=3)
+    maze = Maze([
+        [Wall.NONE for _ in range(3)]
+        for _ in range(3)
+    ])
+    player = Player((1, 1), Direction.NORTH)
+
+    # Both ghosts want to move into the centre cell.
+    first = Ghost(
+        (0, 1),
+        GhostIdentity.EGO_MACHINE,
+        Direction.EAST,
+    )
+    second = Ghost(
+        (2, 1),
+        GhostIdentity.ORANGE_PUNCHLINE,
+        Direction.WEST,
+    )
+
+    level = Level(
+        config=config,
+        maze=maze,
+        player=player,
+        ghosts=[first, second],
+        time_limit=90,
+        pacgums={},
+    )
+
+    level.move_ghosts()
+
+    # The first ghost reaches the centre.
+    assert first.position == (1, 1)
+
+    # The second must wait rather than overlap.
+    assert second.position == (2, 1)
+
+    # No two active ghosts occupy the same cell.
+    positions = [ghost.position for ghost in level.ghosts]
+    assert len(positions) == len(set(positions))

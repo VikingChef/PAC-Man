@@ -51,6 +51,11 @@ def handle_events(
             _handle_pause_event(app, event)
             continue
 
+        # The royal tribunal captures input before global shortcuts.
+        if app.state == states.GAME_OVER:
+            _handle_game_over_event(app, event)
+            continue
+
         # High-score screens own their Back and selection controls.
         if app.state == states.HIGHSCORES:
             _handle_highscores_event(app, event)
@@ -290,3 +295,31 @@ def _handle_pause_event(
 
     if selected_action is not None:
         app.handle_pause_action(selected_action)
+
+
+def _handle_game_over_event(
+    app: PacManApp,
+    event: pg.event.Event,
+) -> None:
+    """Route royal tribunal clicks through gameplay coordinates."""
+    if event.type != pg.MOUSEBUTTONDOWN:
+        return
+
+    canvas_position = screen_to_canvas(
+        event.pos,
+        app.display.game_canvas.get_size(),
+        app.display.screen.get_size(),
+    )
+
+    if canvas_position is None:
+        return
+
+    game_over_event = pg.event.Event(
+        event.type,
+        {**event.dict, "pos": canvas_position},
+    )
+
+    action = app.game_over_screen.handle_event(game_over_event)
+
+    if action is not None:
+        app.handle_game_over_action(action)

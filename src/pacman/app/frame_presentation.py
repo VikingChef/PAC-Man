@@ -147,6 +147,7 @@ def _render_overlays(
         states.PAUSED,
         states.DYING,
         states.TIMEOUT,
+        states.GAME_OVER,
     ):
         render_canvas(
             app.display.game_canvas,
