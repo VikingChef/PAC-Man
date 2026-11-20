@@ -18,11 +18,11 @@ INSTRUCTIONS = (
         "poor fashion choices, the kingdom has summoned "
         "its greatest champion.",
         "You.",
-        "Yes, you. Try to look surprised.",
+        "Yes, you. Try to keep up...",
         "Your destiny is to enter the cursed labyrinth, "
-        "collect its fabulous riches, and emerge victorious.",
-        "Preferably with your dignity intact.",
-        "Although we make no promises.",
+        "relieve it of its riches, and emerge victorious.",
+        "Ideally with your dignity intact.",
+        "Your wig, however, is entirely your OWN responsibility.",
     ),
     (
         "THE UNINVITED GUESTS",
@@ -43,47 +43,83 @@ INSTRUCTIONS = (
         "These days, she seems considerably more interested "
         "in deciding who is allowed into the girls' "
         "dormitory.",
-        "THE FOURTH campaigns fiercely against foreigners, "
-        "while maintaining a rather international "
-        "personal life herself.",
-        "The irony, much like her sense of humour, "
-        "appears to have escaped her.",
+        "THE FOURTH is a self-styled Germanic imperialist "
+        "who believes her country has far too many foreigners.",
+        "Despite sharing her life with a woman of foreign "
+        "descent, she champions a party opposed to "
+        "same-sex marriage and immigration.",
+        "Apparently, equality and diversity are wonderful "
+        "things, provided they stay within her own household.",
         "We shall name no names.",
-        "The Royal Legal Department is already drinking.",
+        "The Royal Legal Department has strongly advised "
+        "against it.",
+        "Their objections were delivered in writing, "
+        "followed by several increasingly desperate "
+        "phone calls.",
+        "The Head of Legal has since retreated "
+        "to a fortified wine cellar.",
+        "We are told negotiations with a second bottle "
+        "are progressing well.",
+        "No further statements will be issued.",
     ),
     (
         "THE ART OF MOVEMENT",
-        "Must we really explain how the arrow keys work?",
-        "Up goes up. Down goes down.",
-        "Left and right are, astonishingly, left and right.",
-        "Alternatively, use W, A, S, and D.",
-        "W for up, A for left, S for down, D for right.",
-        "Revolutionary technology, darling.",
-        "Press SPACE to pause your adventure.",
-        "Because even legends need a moment "
-        "to adjust their wigs.",
+        "Before embarking upon your glorious quest, "
+        "we must address the delicate matter of locomotion.",
+        "Do you genuinely need to be told how the arrow "
+        "keys work?",
+        "Very well.",
+        "UP moves you up. DOWN moves you down.",
+        "LEFT and RIGHT are, astonishingly, left and right.",
+        "For those who consider themselves technologically "
+        "sophisticated, there is also W, A, S and D.",
+        "W goes up. A goes left. S goes down. D goes right.",
+        "Yes, darling. It's exactly the same thing, "
+        "but with letters.",
+        "Should the overwhelming complexity of four "
+        "directions become too much, press SPACE to pause.",
+        "Take a moment. Question your life choices.",
+        "We shall endeavour not to judge.",
+        "At least, not to your face.",
+        "And when you're ready?",
+        "Sniff some poppers, fix your tuck, wig and mug, and...",
+        "GIVE THEM HELL!!!",
     ),
     (
         "THE ROYAL OBJECTIVES",
-        "Collect the money scattered throughout the maze.",
-        "Every last delicious little morsel.",
-        "Avoid the ghosts. Touching them is generally "
-        "considered a poor life decision.",
-        "Unless, of course, you have acquired "
-        "a magnificent power pellet.",
-        "These glorious treasures allow you to turn "
-        "the tables upon your tormentors.",
-        "For a brief moment, the hunted becomes "
-        "the hunter.",
-        "Enjoy it. It does not last forever.",
-        "Clear the maze to continue your quest.",
+        "Your Majesty, the labyrinth is positively "
+        "overflowing with riches.",
+        "Naturally, they belong to you.",
+        "Collect every last coin. Consider it a "
+        "redistribution of wealth, with considerably "
+        "better accessories.",
+        "Unfortunately, four thoroughly objectionable "
+        "spectres have taken it upon themselves to "
+        "interfere with your financial ambitions.",
+        "Avoid them. They have no respect for personal "
+        "space, and physical contact may prove fatal.",
+        "To your dignity, amongst other things.",
+        "But fear not! Scattered throughout the labyrinth "
+        "are magnificent doses of DRAG.",
+        "Collect one, and for a brief, glorious moment, "
+        "the tables are turned.",
+        "The hunted becomes the hunter.",
+        "The bullies become the bullied.",
+        "And the arseholes become considerably more nervous.",
+        "But remember, darling: DRAG DOESN'T LAST FOREVER.",
+        "Once its magic fades, those dreadful creatures "
+        "will resume their pursuit.",
+        "Collect all the money, survive their nonsense, "
+        "and advance to the next labyrinth.",
+        "Do try not to die. The paperwork is simply exhausting.",
     ),
     (
         "NO, SERIOUSLY",
-        "Get the money and drag.",
+        "Get the money.",
         "Avoid the arseholes.",
-        "Eat the power pellets.",
-        "Chase the arseholes.",
+        "Get the drag.",
+        "And when you've got drag?",
+        "CLOCK THE BASTARDS TO THEIR FACE!",
         "Repeat.",
         "That's it.",
         "Honestly, what were you expecting?",
@@ -92,16 +128,31 @@ INSTRUCTIONS = (
     (
         "FOR THE MORALLY FLEXIBLE",
         "There are whispers of a secret ritual.",
-        "An ancient sequence, passed between "
-        "generations of particularly naughty queens.",
-        "Those who discover it may bend reality, "
-        "mock the laws of nature, and become "
-        "unreasonably fabulous.",
-        "But consider this your warning:",
-        "The Hall of Shame has an excellent memory.",
-        "And absolutely no discretion.",
-        "Now go forth, darling.",
-        "BE GAY. DO CRIME. COLLECT COINS.",
+        "An ancient sequence, passed from queen to queen, "
+        "whispered in dressing rooms and scratched into "
+        "the walls of particularly disreputable establishments.",
+        "Those who master it may bend reality, silence "
+        "their enemies, and acquire powers that would "
+        "make the gods themselves question their career choices.",
+        "But how does one invoke such fabulous heresy?",
+        "The old queens speak of a dance.",
+        "First, one must rise to greatness.",
+        "Then rise again, for once is never enough.",
+        "What goes up must come down.",
+        "And down again, because a good whore knows "
+        "that enthusiasm is a virtue, not a vice.",
+        "From there, the path takes an unexpected turn.",
+        "And one unexpected turn deserves another.",
+        "And from there, darling, you must SEE.",
+        "But remember, darling, forbidden magic is not "
+        "performed from the comfort of a reading room.",
+        "One must enter the labyrinth before "
+        "attempting the ritual.",
+        "Beware: those who invoke forbidden powers "
+        "may find their names immortalised "
+        "in the Hall of Shame.",
+        "The Royal Legal Department declines to comment.",
+        "They are still in the wine cellar.",
     ),
 )
 
