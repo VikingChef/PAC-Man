@@ -78,6 +78,9 @@ def handle_events(
         elif app.state == states.PLAYING:
             _handle_gameplay_event(app, event)
 
+        if app.state == states.VICTORY:
+            _handle_victory_event(app, event)
+
 
 def _handle_name_entry_event(
     app: PacManApp,
@@ -327,3 +330,23 @@ def _handle_game_over_event(
 
     if action is not None:
         app.handle_game_over_action(action)
+
+
+def _handle_victory_event(
+        app: PacManApp,
+        event: pg.event.Event
+      ) -> None:
+    """Handle clicking on victory screen"""
+    from pacman.app.application import AppState
+
+    if event.type != pg.MOUSEBUTTONDOWN:
+        return
+
+    mx, my = pg.mouse.get_pos()
+    if (mx >= app.victory_screen.hover.left
+        and mx <= app.victory_screen.hover.right
+        and my >= app.victory_screen.hover.top
+        and my <= app.victory_screen.hover.bottom
+       and event.type == pg.MOUSEBUTTONDOWN):
+        if not app._finalize_run():
+            app.change_state(AppState.MAIN_MENU)

@@ -2,7 +2,7 @@
 
 import os
 
-path = './src/pacman/app/images/bg-frames'
+path = './src/pacman/app/images/fireworks'
 dir_list = sorted(os.listdir(path))
 
 for i, file in enumerate(dir_list):
