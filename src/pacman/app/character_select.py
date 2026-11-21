@@ -13,7 +13,8 @@ class CharacterSelect:
     def __init__(self, screen: pg.Surface) -> None:
         self.queen_1: Button = Button(
             'queen-1.png',
-            'queen-1-hover.png'
+            'queen-1-hover.png',
+            hover_offset=(60, 30)
         )
         x: int = center(
             screen.get_width() // 2,
@@ -64,7 +65,7 @@ class CharacterSelect:
         )
         self.waka_pos: tuple[int, int] = (
             waka_x,
-            self.queen_1.pos[1] + 250
+            self.queen_1.pos[1] + 100
         )
 
         ms_pellet_x: int = (
