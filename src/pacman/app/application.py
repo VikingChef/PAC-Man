@@ -5,7 +5,9 @@ from random import randint
 from types import TracebackType
 import pygame as pg
 from pacman.app.actions import CharSelectAction
-from pacman.app.actions import MainMenuAction, center
+from pacman.app.actions import (
+    MainMenuAction, center, IMAGES, load_trans_image
+)
 from pacman.app.app_display import AppDisplay
 from pacman.app.cheat_code import CheatCode
 from pacman.app.cheat_panel import CheatPanel
@@ -104,6 +106,9 @@ class PacManApp:
         # None means the two-button Hall selection screen is visible.
         self.active_highscore_board: EntryKind | None = None
         self.pause_background: pg.Surface | None = None
+        self.level_bg: pg.Surface = load_trans_image(
+            f'{IMAGES}/level-bg.png'
+        )
         # Maze geometry changes whenever a level is loaded.
         self.active_level_layout: list[list[str]] = []
         self.block_pos: list[list[tuple[int, int]]] = []
@@ -655,6 +660,7 @@ class PacManApp:
             sprite_animator=self.sprite_animator,
             hud=self.display.hud,
             disco_effects=self.display.disco_effects,
+            level_bg=self.level_bg
         )
 
     def _run_pause_menu(self) -> None:

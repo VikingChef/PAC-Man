@@ -61,15 +61,34 @@ class Ghost:
             front = load_trans_image(
                 f"{IMAGES}/ghosts/{sprite_path}-front.png"
             )
+            frightened_front = load_trans_image(
+                f"{IMAGES}/ghosts/{sprite_path}-afraid-front.png"
+            )
             self.sprite = {
-                Direction.NORTH: front,
-                Direction.SOUTH: front,
-                Direction.WEST: load_trans_image(
-                    f"{IMAGES}/ghosts/{sprite_path}-left.png"
-                ),
-                Direction.EAST: load_trans_image(
-                    f"{IMAGES}/ghosts/{sprite_path}-right.png"
-                ),
+                Direction.NORTH: {
+                    GhostState.ENRAGED: front,
+                    GhostState.FRIGHTENED: frightened_front
+                    },
+                Direction.SOUTH: {
+                    GhostState.ENRAGED: front,
+                    GhostState.FRIGHTENED: frightened_front
+                    },
+                Direction.WEST: {
+                    GhostState.ENRAGED: load_trans_image(
+                        f"{IMAGES}/ghosts/{sprite_path}-left.png"
+                    ),
+                    GhostState.FRIGHTENED: load_trans_image(
+                        f"{IMAGES}/ghosts/{sprite_path}-afraid-left.png"
+                    )
+                    },
+                Direction.EAST: {
+                    GhostState.ENRAGED: load_trans_image(
+                        f"{IMAGES}/ghosts/{sprite_path}-right.png"
+                    ),
+                    GhostState.FRIGHTENED: load_trans_image(
+                        f'{IMAGES}/ghosts/{sprite_path}-afraid-right.png'
+                    )
+                },
             }
 
     def reset(self) -> None:

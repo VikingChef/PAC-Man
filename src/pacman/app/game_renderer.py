@@ -12,6 +12,7 @@ from pacman.app.sprite_animator import SpriteAnimator
 from pacman.game.cheat_mode import CheatMode
 from pacman.game.level import Level
 from pacman.game.state import GameState
+from pacman.app.actions import center
 
 
 CellPosition = tuple[int, int]
@@ -111,10 +112,16 @@ def render_game(
     sprite_animator: SpriteAnimator,
     hud: GameHUD,
     disco_effects: DiscoEffects,
+    level_bg: pg.Surface
 ) -> None:
     """Render the complete active game in its original drawing order."""
     # Clear previous-frame pixels before drawing the current scene.
-    canvas.fill((24, 18, 38))
+    canvas.fill((0, 0, 0))
+    bg_pos = (
+        center(canvas.get_width(), level_bg.get_width()),
+        center(canvas.get_height(), level_bg.get_height())
+    )
+    canvas.blit(level_bg, bg_pos)
 
     render_maze_walls(
         canvas,

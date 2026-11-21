@@ -113,37 +113,37 @@ class SpriteAnimator:
                 # Preserve the existing respawn blinking behaviour.
                 if int(time.monotonic() * 4) % 2 == 0:
                     continue
+            else:
+                sprite = ghost.sprite[ghost.direction][ghost.state]
+                dimensions = (sprite.get_width(), sprite.get_height())
+                draw_x, draw_y = self._cell_position(ghost.position)
+                animation = self.ghost_moves.get(ghost)
 
-            sprite = ghost.sprite[ghost.direction]
-            dimensions = (sprite.get_width(), sprite.get_height())
-            draw_x, draw_y = self._cell_position(ghost.position)
-            animation = self.ghost_moves.get(ghost)
+                if animation is not None:
+                    start_position, started_at = animation
+                    duration = level.config.ghost_move_interval_ms / 1000
 
-            if animation is not None:
-                start_position, started_at = animation
-                duration = level.config.ghost_move_interval_ms / 1000
+                    # Interpolation affects only the displayed position.
+                    # Logical ghost movement remains owned by the game.
+                    progress = min(
+                        1.0,
+                        (time.monotonic() - started_at)
+                        / max(duration, 0.001),
+                    )
+                    draw_x, draw_y = self._interpolated_position(
+                        start_position,
+                        ghost.position,
+                        progress,
+                    )
 
-                # Interpolation affects only the displayed position.
-                # Logical ghost movement remains owned by the game.
-                progress = min(
-                    1.0,
-                    (time.monotonic() - started_at)
-                    / max(duration, 0.001),
+                    # Finished animations no longer need tracking.
+                    if progress >= 1.0:
+                        self.stop_ghost_move(ghost)
+
+                canvas.blit(
+                    sprite,
+                    (
+                        draw_x + center(block_width, dimensions[0]),
+                        draw_y + center(block_height, dimensions[1]),
+                    ),
                 )
-                draw_x, draw_y = self._interpolated_position(
-                    start_position,
-                    ghost.position,
-                    progress,
-                )
-
-                # Finished animations no longer need tracking.
-                if progress >= 1.0:
-                    self.stop_ghost_move(ghost)
-
-            canvas.blit(
-                sprite,
-                (
-                    draw_x + center(block_width, dimensions[0]),
-                    draw_y + center(block_height, dimensions[1]),
-                ),
-            )
