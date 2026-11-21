@@ -1,7 +1,7 @@
 {
     "highscore_filename": "highscores.json",
     "lives": 3,
-    "pacgum": 42,
+    "pacgum": 1,
     "points_per_pacgum": 10,
     "points_per_super_pacgum": 50,
     "points_per_ghost": 200,
@@ -10,51 +10,6 @@
     "levels": [
         {
             "number": 1,
-            "width": 15,
-            "height": 15
-        },
-        {
-            "number": 2,
-            "width": 15,
-            "height": 15
-        },
-        {
-            "number": 3,
-            "width": 15,
-            "height": 15
-        },
-        {
-            "number": 4,
-            "width": 15,
-            "height": 15
-        },
-        {
-            "number": 5,
-            "width": 15,
-            "height": 15
-        },
-        {
-            "number": 6,
-            "width": 15,
-            "height": 15
-        },
-        {
-            "number": 7,
-            "width": 15,
-            "height": 15
-        },
-        {
-            "number": 8,
-            "width": 15,
-            "height": 15
-        },
-        {
-            "number": 9,
-            "width": 15,
-            "height": 15
-        },
-        {
-            "number": 10,
             "width": 15,
             "height": 15
         }

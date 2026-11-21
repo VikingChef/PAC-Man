@@ -8,7 +8,7 @@ from pacman.config.models import GameConfig, LevelConfig
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_LEVEL_COUNT = 10
+DEFAULT_LEVEL_COUNT = 1
 DEFAULT_LEVEL_WIDTH = 21
 DEFAULT_LEVEL_HEIGHT = 21
 DEFAULT_GHOST_INTERVAL_MS = 400

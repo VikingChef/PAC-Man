@@ -250,6 +250,10 @@ def _handle_gameplay_event(
     if event.type != pg.KEYDOWN:
         return
 
+    if event.key == pg.K_F1:
+        from pacman.app.application import AppState
+        app.change_state(AppState.VICTORY)
+
     # Check the secret sequence before ordinary movement.
     unlocked = app.cheat_code.register_key(
         event.key,

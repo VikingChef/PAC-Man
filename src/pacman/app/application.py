@@ -48,6 +48,7 @@ from pacman.app.instructions_screen import InstructionsScreen
 from pacman.app.menu_renderer import render_instructions
 from pacman.app.startup_splash import StartupSplash
 from pacman.app.game_over_screen import GameOverAction, GameOverScreen
+from pacman.app.victory import VictoryScreen
 
 
 class AppState(Enum):
@@ -93,6 +94,7 @@ class PacManApp:
         self.game_over_screen = GameOverScreen(
             self.display.game_canvas
         )
+        self.victory_screen = VictoryScreen(self.display.screen, 0)
         self.name_entry = NameEntryScreen(self.display.menu_canvas)
         self.highscore_select = HighScoreSelect(
             self.display.menu_canvas
@@ -515,8 +517,8 @@ class PacManApp:
             return
         next_level_config = self.session.advance_level()
         if next_level_config is None:
-            if not self._finalize_run():
-                self.change_state(AppState.VICTORY)
+            # if not self._finalize_run():
+            self.change_state(AppState.VICTORY)
             return
         # Preserve the existing random seed behaviour.
         next_level_seed = randint(0, 2**31 - 1)
@@ -691,7 +693,9 @@ class PacManApp:
     def _run_victory(self) -> None:
         """Handle the victory application state."""
         # Victory presentation remains a separate UI task.
-        pass
+        if self.game_state is not None:
+            self.victory_screen.score = self.game_state.score
+        self.victory_screen.render_victory()
 
     def _run_name_entry(self) -> None:
         """Render high-score name entry on the logical menu canvas."""
