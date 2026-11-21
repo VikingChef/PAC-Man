@@ -49,11 +49,12 @@ class PauseMenu:
         """Load the menu artwork and prepare its interactive labels."""
         self.screen = screen
         self.font = pg.font.Font(FONT_PATH, 20)
+        self.italics_font = pg.font.Font(FONT_PATH, 10)
+        self.italics_font.italic = True
         self.main_menu = PauseButton("Back to Main Menu", self.font)
         self.restart_level = PauseButton("Restart Level", self.font)
         self.change_char = PauseButton("Change Queen", self.font)
         self.quit_game = PauseButton("Quit Game", self.font)
-        self.quit_menu = PauseButton("X", self.font)
 
         # Keep the artwork from Ilias's UI branch when it is present.
         # A drawn frame also lets the menu run before those assets merge.
@@ -73,8 +74,13 @@ class PauseMenu:
             (self.restart_level, PauseMenuAction.RESTART_LEVEL),
             (self.change_char, PauseMenuAction.CHANGE_QUEEN),
             (self.quit_game, PauseMenuAction.QUIT_GAME),
-            (self.quit_menu, PauseMenuAction.RESUME_GAME),
         )
+        self.hint = self.italics_font.render(
+            'Press [SPACE] to unpause.',
+            True,
+            color='white'
+            )
+
         self._place_buttons()
 
     def _place_buttons(self) -> None:
@@ -94,16 +100,6 @@ class PauseMenu:
                 vertical_center + offset,
             ))
 
-        # Place the close button relative to the pause frame itself.
-        frame_width = self.frame.get_width() if self.frame else 650
-        frame_height = self.frame.get_height() if self.frame else 470
-        frame_left = center(screen_width, frame_width)
-        frame_top = center(screen_height, frame_height)
-        self.quit_menu.place((
-            frame_left + frame_width - 65,
-            frame_top + 30,
-        ))
-
     def render_pause_menu(
         self,
         mouse_position: tuple[int, int],
@@ -120,6 +116,12 @@ class PauseMenu:
                 center(self.screen.get_height(), self.frame.get_height()),
             )
             self.screen.blit(self.frame, frame_position)
+
+            hint_position = (
+                center(self.screen.get_width(), self.hint.get_width()),
+                frame_position[1] + 80
+            )
+            self.screen.blit(self.hint, hint_position)
         else:
             frame_rect = pg.Rect(0, 0, 650, 470)
             frame_rect.center = self.screen.get_rect().center
