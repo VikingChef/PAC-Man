@@ -8,6 +8,7 @@ import pygame as pg
 
 from pacman.app.ui_assets import IMAGES, center, load_trans_image
 from pacman.app.ui_button import Button
+from pacman.app.pixel_scaling import scale_pixels
 
 
 FONT_PATH = (
@@ -113,7 +114,7 @@ class HighScoreSelect:
         )
 
         # Nearest-neighbour scaling preserves the pixel-art edges.
-        button.button = pg.transform.scale(button.button, new_size)
+        button.button = scale_pixels(button.button, new_size)
 
         # Lighten the approved image rather than require new artwork.
         button.hover_button = button.button.copy()

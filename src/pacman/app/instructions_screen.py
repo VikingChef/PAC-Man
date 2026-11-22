@@ -8,6 +8,7 @@ import pygame as pg
 from pacman.app.pause_menu import FONT_PATH
 from pacman.app.ui_assets import IMAGES, load_trans_image
 from pacman.app.ui_button import Button
+from pacman.app.pixel_scaling import scale_pixels
 
 
 INSTRUCTIONS = (
@@ -177,7 +178,7 @@ class InstructionsScreen:
             max(1, round(image.get_height() * scale)),
         )
 
-        self.scroll = pg.transform.scale(image, scroll_size)
+        self.scroll = scale_pixels(image, scroll_size)
         self.scroll_rect = self.scroll.get_rect(
             center=(width // 2, height // 2)
         )

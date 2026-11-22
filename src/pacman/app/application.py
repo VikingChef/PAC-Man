@@ -429,17 +429,21 @@ class PacManApp:
             self.display.frame_gen,
             None,
         )
+
         if frame is not None:
             self.display.bg.append(frame)
+
             # Begin animation timing when the first frame arrives.
             if len(self.display.bg) == 1:
                 self.start_time = time.time() * 1000
-                self.display.loading.render_bar(
-                    min(
-                        4,
-                        len(self.display.bg) * 5 // self.display.bg_files,
-                    )
+
+            # Update progress for every successfully loaded frame.
+            self.display.loading.render_bar(
+                min(
+                    4,
+                    len(self.display.bg) * 5 // self.display.bg_files,
                 )
+            )
 
     def _reset_score_after_cheat(self) -> None:
         """Invalidate the score after cheating."""

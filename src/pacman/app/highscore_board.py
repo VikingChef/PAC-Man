@@ -12,6 +12,7 @@ from pacman.app.ui_assets import IMAGES, load_trans_image
 from pacman.app.ui_button import Button
 from pacman.game.highscores import HighScoreManager
 from pacman.game.run_finalizer import EntryKind
+from pacman.app.pixel_scaling import scale_pixels
 
 
 class HighScoreBoard:
@@ -71,8 +72,8 @@ class HighScoreBoard:
             max(1, round(image_height * scale)),
         )
 
-        # Nearest-neighbour scaling preserves pixel-art styling.
-        return pg.transform.scale(image, size)
+        # Resize through MLX-equivalent pixel-buffer operations.
+        return scale_pixels(image, size)
 
     def _draw_background(self, kind: EntryKind) -> None:
         """Center the appropriate illustrated scoreboard."""

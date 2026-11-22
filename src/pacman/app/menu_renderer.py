@@ -9,6 +9,7 @@ from pacman.app.actions import CharacterSelect, MainMenu
 from pacman.app.highscore_select import HighScoreSelect
 from pacman.app.viewport import fit_canvas, screen_to_canvas
 from pacman.app.instructions_screen import InstructionsScreen
+from pacman.app.pixel_scaling import scale_pixels
 
 
 def background_frame_index(
@@ -45,7 +46,7 @@ def render_menu_background(
     )
 
     # Backgrounds fill the screen, independently of menu scaling.
-    background = pg.transform.scale(
+    background = scale_pixels(
         background_frames[frame_index],
         screen.get_size(),
     )
@@ -68,8 +69,8 @@ def render_menu_canvas(
         round(menu_canvas.get_height() * scale),
     )
 
-    # Keep the original smooth scaling used by both menus.
-    scaled_menu = pg.transform.smoothscale(
+    # Scale the menu through direct image-buffer pixel copying.
+    scaled_menu = scale_pixels(
         menu_canvas,
         scaled_size,
     )

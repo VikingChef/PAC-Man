@@ -1,15 +1,15 @@
-
 """Display the royal Game Over tribunal and its mercy choices."""
 
+import time
 from enum import Enum, auto
 from pathlib import Path
 
 import pygame as pg
-import time
 
-from pacman.app.pause_menu import FONT_PATH
-from pacman.app.ui_assets import IMAGES
 from pacman.app.game_over_background import create_greyscale_background
+from pacman.app.pause_menu import FONT_PATH
+from pacman.app.pixel_fading import blend_pixels
+from pacman.app.ui_assets import IMAGES
 
 
 class GameOverAction(Enum):
@@ -29,9 +29,9 @@ class GameOverScreen:
             str(Path(IMAGES) / "game_over.png")
         ).convert_alpha()
 
-        self.title_font = pg.font.Font(FONT_PATH, 18)
-        self.text_font = pg.font.Font(FONT_PATH, 10)
-        self.button_font = pg.font.Font(FONT_PATH, 11)
+        self.title_font = pg.font.Font(FONT_PATH, 17)
+        self.text_font = pg.font.Font(FONT_PATH, 14)
+        self.button_font = pg.font.Font(FONT_PATH, 12)
 
         self.white = (235, 230, 230)
         self.silver = (190, 190, 195)
@@ -39,27 +39,27 @@ class GameOverScreen:
 
         self.refused = False
         self.background: pg.Surface | None = None
-
         self.original_background: pg.Surface | None = None
         self.fade_started_at: float | None = None
 
-        # Position controls relative to the original artwork.
         screen_center = self.screen.get_rect().center
         self.panel = self.artwork.get_rect(
             center=(screen_center[0], screen_center[1] + 35)
         )
 
+        # The button art occupies y=365..440 within the 650x470 panel.
+        # These rectangles serve both text placement and mouse handling.
         self.mercy_button = pg.Rect(
-            self.panel.left + 75,
+            self.panel.left + 65,
             self.panel.top + 365,
-            235,
-            65,
+            240,
+            75,
         )
         self.leave_button = pg.Rect(
-            self.panel.left + 340,
+            self.panel.left + 325,
             self.panel.top + 365,
-            235,
-            65,
+            240,
+            75,
         )
 
     def begin(self) -> None:
@@ -82,17 +82,16 @@ class GameOverScreen:
     ) -> None:
         """Draw one centered line of arcade text."""
         image = font.render(message, True, color)
-        position = (
-            self.panel.centerx - image.get_width() // 2,
-            center_y - image.get_height() // 2,
+        position = image.get_rect(
+            center=(self.panel.centerx, center_y)
         )
         self.screen.blit(image, position)
 
     def render(self) -> None:
         """Render the frozen game and royal funeral tribunal."""
         if self.background is None:
-            # Capture the final gameplay frame only once.
-            self.original_background = self.screen.copy()
+            # Capture the last gameplay frame once per Game Over.
+            self.original_background = self.screen.copy().convert()
             self.background = create_greyscale_background(
                 self.original_background
             )
@@ -107,35 +106,36 @@ class GameOverScreen:
             progress = min(elapsed / 1.2, 1.0)
 
             if progress >= 1.0:
-                # Keep the dark greyscale background permanently.
-                self.background.set_alpha(None)
-                self.screen.blit(self.background, (0, 0))
+                faded_background = self.background
             else:
-                # Fade only during the initial transition.
-                opacity = int(progress * 255)
-                fade_frame = self.background.copy()
-                fade_frame.set_alpha(opacity)
-
-                self.screen.blit(
-                    self.original_background, (0, 0)
+                faded_background = blend_pixels(
+                    self.original_background,
+                    self.background,
+                    progress,
                 )
-                self.screen.blit(fade_frame, (0, 0))
 
-        # The funeral artwork must retain its original colours.
+            # Keep the working fade: write RGB values to the canvas.
+            colours = pg.surfarray.array3d(faded_background)
+            canvas_pixels = pg.surfarray.pixels3d(self.screen)
+            canvas_pixels[:, :, :] = colours
+            del canvas_pixels
+
+        # The funeral artwork stays coloured above the grey maze.
         self.screen.blit(self.artwork, self.panel.topleft)
 
+        # Title sits inside the red banner, clear of its silver rim.
         self._draw_text(
             "GAME OVER, DARLING.",
             self.title_font,
             self.white,
-            self.panel.top + 85,
+            self.panel.top + 93,
         )
 
         self._draw_text(
             "A QUEEN HAS FALLEN.",
             self.text_font,
             self.silver,
-            self.panel.top + 135,
+            self.panel.top + 160,
         )
 
         if self.refused:
@@ -156,10 +156,9 @@ class GameOverScreen:
                 line,
                 self.text_font,
                 self.white,
-                self.panel.top + 205 + index * 30,
+                self.panel.top + 225 + index * 29,
             )
 
-        # Remove the mercy label after the second plea.
         if not self.refused:
             mercy_image = self.button_font.render(
                 "BEG FOR MERCY",
@@ -171,7 +170,6 @@ class GameOverScreen:
             )
             self.screen.blit(mercy_image, mercy_position)
 
-        # Sashay Away remains available at all times.
         leave_image = self.button_font.render(
             "SASHAY AWAY",
             True,

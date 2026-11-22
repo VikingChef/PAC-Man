@@ -1,6 +1,7 @@
 
-"""Prepare a frozen greyscale background for the Game Over screen."""
+"""Prepare a frozen greyscale background for Game Over."""
 
+import numpy as np
 import pygame as pg
 
 
@@ -9,21 +10,25 @@ def create_greyscale_background(
 ) -> pg.Surface:
     """Return a darkened greyscale copy of a gameplay frame."""
     background = original.copy()
-    width, height = background.get_size()
 
-    # Modify individual image pixels, preserving their original alpha.
-    # This avoids relying on specialised Pygame colour filters.
-    for y in range(height):
-        for x in range(width):
-            red, green, blue, alpha = background.get_at((x, y))
+    # Read the image colours into a numerical pixel array.
+    pixels = pg.surfarray.array3d(original).astype(np.uint16)
 
-            # Average the colour channels and darken the result.
-            brightness = (red + green + blue) // 3
-            grey = brightness * 65 // 100
+    # Calculate average brightness without Python pixel loops.
+    brightness = (
+        pixels[:, :, 0]
+        + pixels[:, :, 1]
+        + pixels[:, :, 2]
+    ) // 3
 
-            background.set_at(
-                (x, y),
-                (grey, grey, grey, alpha),
-            )
+    # Darken the greyscale image to 65% brightness.
+    grey = (brightness * 65 // 100).astype(np.uint8)
+
+    # Write the new colours while retaining the surface format.
+    result_pixels = pg.surfarray.pixels3d(background)
+    result_pixels[:, :, 0] = grey
+    result_pixels[:, :, 1] = grey
+    result_pixels[:, :, 2] = grey
+    del result_pixels
 
     return background

@@ -7,6 +7,8 @@ from pathlib import Path
 import pygame as pg
 
 from pacman.app.ui_assets import IMAGES
+from pacman.app.pixel_scaling import scale_pixels
+from pacman.app.pixel_fading import blend_pixels
 
 
 class StartupSplash:
@@ -36,10 +38,13 @@ class StartupSplash:
             max(1, round(image.get_height() * scale)),
         )
 
-        self.logo = pg.transform.smoothscale(image, size)
+        self.logo = scale_pixels(image, size)
         self.logo_rect = self.logo.get_rect(
             center=screen.get_rect().center
         )
+        # Reuse a black image as the starting point for the fade.
+        self.black_logo = self.logo.copy()
+        self.black_logo.fill((0, 0, 0))
 
     def finished(self, current_time: float) -> bool:
         """Report whether the startup presentation has ended."""
@@ -62,10 +67,11 @@ class StartupSplash:
             remaining = self.DURATION - elapsed
             opacity = remaining / self.FADE_OUT
 
-        alpha = max(0, min(255, round(opacity * 255)))
-
-        # Apply transparency to a copy, preserving the loaded image.
-        faded_logo = self.logo.copy()
-        faded_logo.set_alpha(alpha)
+        # Calculate the fade through direct pixel-buffer arithmetic.
+        faded_logo = blend_pixels(
+            self.black_logo,
+            self.logo,
+            max(0.0, min(1.0, opacity)),
+        )
 
         self.screen.blit(faded_logo, self.logo_rect)

@@ -3,6 +3,8 @@
 
 import pygame as pg
 
+from pacman.app.pixel_scaling import scale_pixels
+
 
 # Keep gameplay coordinates independent of the physical monitor.
 # The finished canvas will be scaled proportionally to fit the display.
@@ -102,7 +104,7 @@ def render_canvas(
     display.fill((24, 18, 38))
 
     # Resize the completed game image while preserving its aspect ratio.
-    scaled_canvas = pg.transform.smoothscale(canvas, scaled_size)
+    scaled_canvas = scale_pixels(canvas, scaled_size)
 
     # Place the scaled image in the centre of the physical display.
     display.blit(scaled_canvas, (x, y))

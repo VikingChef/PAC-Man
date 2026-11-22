@@ -3,6 +3,8 @@
 
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import create_autospec
+from pacman.app.game_over_screen import GameOverScreen
 
 import pygame as pg
 import pytest
@@ -94,13 +96,15 @@ def test_enraged_collision_takes_priority() -> None:
 
 
 def test_final_life_collision_ends_game(tmp_path: Path) -> None:
-    """The final life ends only after the visible death transition."""
+    """Final defeat offers mercy before finalizing the run."""
     app = create_collision_test_app(
         [GhostState.ENRAGED],
         lives=1,
     )
 
-    # This lightweight test fixture needs the new run finalizer.
+    # The lightweight fixture has no graphical Game Over screen.
+    app.game_over_screen = create_autospec(GameOverScreen, instance=True)
+
     manager = HighScoreManager(str(tmp_path / "scores.json"))
     app.run_finalizer = RunFinalizer(manager)
     app.run_finalizer.start_run()
@@ -109,16 +113,17 @@ def test_final_life_collision_ends_game(tmp_path: Path) -> None:
 
     app.resolve_ghost_collisions()
 
-    # A fatal collision must first enter the death transition.
+    # The fatal collision enters the visible death transition first.
     assert app.state == AppState.DYING
     assert app.game_state.lives == 1
 
     app._finish_death()
 
+    # The player can still beg for mercy or leave.
     assert app.game_state.lives == 0
     assert app.state == AppState.GAME_OVER
     assert app.death_started_at is None
-    assert app.run_finalizer.run_finalized is True
+    assert app.run_finalizer.run_finalized is False
 
 
 def test_player_movement_into_enraged_ghost_loses_life() -> None:
