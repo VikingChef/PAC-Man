@@ -10,7 +10,13 @@ from pacman.app.ui_button import Button
 
 
 class CharacterSelect:
+    """Character Select screen."""
+
     def __init__(self, screen: pg.Surface) -> None:
+        """Create a character select screen.
+
+        Args:
+            screen (pg.Surface): screen to display the graphics."""
         self.queen_1: Button = Button(
             'queen-1.png',
             'queen-1-hover.png',
@@ -101,6 +107,12 @@ class CharacterSelect:
         mouse: tuple[int, int],
         screen: pg.Surface
     ) -> None:
+        """Render the character select. Runs in the main loop.
+
+        Args:
+            mouse (tuple[int, int]): mouse positions in x,y
+            screen (pg.Surface): screen displaying the graphics"""
+
         mx, my = mouse
 
         for queen in self.QUEENS:
@@ -123,6 +135,13 @@ class CharacterSelect:
         self,
         event: pg.event.Event,
     ) -> CharSelectAction | None:
+        """Handle events from character select screen.
+
+        Args:
+            event (pg.event.Event): Pygame Event, here pressing mouse
+
+        Returns:
+            CharSelectAction | None: Action from character select screen."""
         if event.type == pg.MOUSEBUTTONDOWN:
             mx, my = event.pos
 

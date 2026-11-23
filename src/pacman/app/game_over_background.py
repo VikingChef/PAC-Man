@@ -8,6 +8,7 @@ def create_greyscale_background(
     original: pg.Surface,
 ) -> pg.Surface:
     """Return a darkened greyscale copy of a gameplay frame."""
+
     background = original.copy()
     width, height = background.get_size()
 

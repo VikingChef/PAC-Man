@@ -9,8 +9,25 @@ IMAGES: Final = "src/pacman/app/images"
 
 
 def load_trans_image(path: str) -> pg.Surface:
+    """Load a transparent image
+
+    Args:
+        path (str): path to the image
+
+    Returns:
+        pg.Surface: The image as a pygame object
+    """
     return pg.image.load(path).convert_alpha()
 
 
-def center(screen_dim: int, item_dim: int) -> int:
-    return int(screen_dim / 2 - item_dim / 2)
+def center(src_dim: int, dest_dim: int) -> int:
+    """Center an image according to another surface.
+
+    Args:
+        screen_dim (int): dimension of one of the objects
+        item_dim (int): dimension of the other object
+
+    Returns:
+        int: position for the centered object.
+    """
+    return int(src_dim / 2 - dest_dim / 2)

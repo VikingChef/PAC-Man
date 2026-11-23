@@ -11,7 +11,13 @@ from pacman.app.ui_button import Button
 
 
 class MainMenu:
+    """Main menu screen"""
+
     def __init__(self, screen: pg.Surface) -> None:
+        """Prepare objects appearing in main menu.
+
+        Args:
+            screen (pg.Surface): Screen displaying main menu"""
         R_DIST_FROM_CNTR: Final = 25
         L_DIST_FROM_CNTR: Final = 430
         button_r: int = screen.get_width() // 2 + R_DIST_FROM_CNTR
@@ -71,6 +77,14 @@ class MainMenu:
         mouse: tuple[int, int],
         screen: pg.Surface
     ) -> None:
+        """Render the main menu objects on screen/
+
+        Args:
+            start_time (float): time when the main menu screen was
+                                first displayed.
+            mouse (tuple[int, int]): mouse position in x,y
+            screen (pg.Surface): screen displaying the objects.
+        """
         now: float = time.time() * 1000
         mx, my = mouse
         title_frame: int = (
@@ -93,6 +107,14 @@ class MainMenu:
         self,
         event: pg.event.Event,
     ) -> MainMenuAction | None:
+        """Handle main menu events.
+
+        Args:
+            event (pg.event.Event): pygame event here when mouse is pressed.
+
+        Returns:
+            MainMenuAction | None: Event translated to action.
+        """
         if event.type == pg.MOUSEBUTTONDOWN:
             mx, my = event.pos
 

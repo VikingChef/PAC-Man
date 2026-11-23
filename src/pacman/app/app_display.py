@@ -7,7 +7,7 @@ from collections.abc import Iterator
 
 import pygame as pg
 
-from pacman.app.actions import CharacterSelect, LoadingBar, MainMenu
+from pacman.app.actions import CharacterSelect, MainMenu
 from pacman.app.actions import IMAGES, load_trans_image
 from pacman.app.disco_effects import DiscoEffects
 from pacman.app.hud import GameHUD
@@ -33,7 +33,6 @@ class AppDisplay:
         # UI components share their owning display resources.
         self.main_menu = MainMenu(self.menu_canvas)
         self.char_select = CharacterSelect(self.menu_canvas)
-        self.loading = LoadingBar(self.screen)
         self.hud = GameHUD()
         self.disco_effects = DiscoEffects()
 
@@ -79,7 +78,13 @@ def load_frames(
     path: str,
     filenames: list[str] | None = None,
 ) -> Iterator[pg.Surface]:
-    """Load validated background frames in numerical order."""
+    """Load frames for animation frame by frame.
+
+    Args:
+        path (str): path to the frames
+
+    Yields:
+        Iterator[pg.Surface]: latest frame"""
     if filenames is None:
         filenames = background_frame_filenames(path)
 

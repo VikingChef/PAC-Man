@@ -19,6 +19,7 @@ class DiscoEffects:
         hue: float,
     ) -> tuple[int, int, int]:
         """Convert a hue into a bright RGB colour."""
+
         red, green, blue = colorsys.hsv_to_rgb(
             hue % 1.0, 0.95, 1.0
         )
@@ -34,6 +35,7 @@ class DiscoEffects:
         maze_bounds: pg.Rect,
     ) -> list[tuple[int, int]]:
         """Find four positions around the maze corners."""
+
         distance = self.BALL_RADIUS + self.BALL_MARGIN
 
         candidates = [
@@ -74,6 +76,7 @@ class DiscoEffects:
         animation_time: float,
     ) -> None:
         """Project bright, smoothly moving rainbow spotlights."""
+
         lighting = pg.Surface(screen.get_size(), pg.SRCALPHA)
         lighting.set_clip(maze_bounds.clip(screen.get_rect()))
 
@@ -157,6 +160,7 @@ class DiscoEffects:
         animation_time: float,
     ) -> None:
         """Draw a silver mirror ball with animated reflective tiles."""
+
         radius = self.BALL_RADIUS
         size = radius * 2 + 2
         centre = (radius + 1, radius + 1)
@@ -257,6 +261,7 @@ class DiscoEffects:
         animation_time: float,
     ) -> None:
         """Render the disco balls and their rainbow lighting."""
+
         positions = self._ball_positions(screen, maze_bounds)
 
         # Draw light first so the mirror balls remain in front.

@@ -19,6 +19,7 @@ def render_current_frame(
     current_time: float,
 ) -> None:
     """Draw the current application state and its overlays."""
+
     if (
         app.state == states.MAIN_MENU
         and not app.startup_splash.finished(current_time)
@@ -102,6 +103,7 @@ def _render_dying(
     current_time: float,
 ) -> None:
     """Show the collision before resolving the lost life."""
+
     if (
         app.death_started_at is not None
         and current_time - app.death_started_at >= 0.35
@@ -118,6 +120,7 @@ def _render_timeout(
     current_time: float,
 ) -> None:
     """Show the expired level before resolving the timeout."""
+
     if (
         app.timeout_started_at is not None
         and current_time - app.timeout_started_at >= 3.0

@@ -21,11 +21,13 @@ class CheatCode:
 
     def __init__(self) -> None:
         """Start with no keys entered."""
+
         self.progress = 0
         self.last_key_time: float | None = None
 
     def reset(self) -> None:
         """Discard the current sequence."""
+
         self.progress = 0
         self.last_key_time = None
 
