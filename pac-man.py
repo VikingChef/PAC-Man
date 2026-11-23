@@ -21,8 +21,12 @@ def main() -> None:
         print(error, file=sys.stderr)
         exit(1)
 
-    with PacManApp(config) as app:
-        app.run()
+    try:
+        with PacManApp(config) as app:
+            app.run()
+    except KeyboardInterrupt:
+        print("Game interrupted in terminal, exiting...", file=sys.stderr)
+        exit(1)
 
 
 if __name__ == "__main__":
