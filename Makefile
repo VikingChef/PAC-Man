@@ -1,24 +1,19 @@
-# PowerShell-friendly Makefile. Usage: make -f Makefile.powershell <target>
 CONFIG ?= config.json
 export PYGAME_HIDE_SUPPORT_PROMPT := 1
 export PYTHONPATH := src
-
-SHELL := powershell.exe
-.SHELLFLAGS := -NoProfile -Command
-
-.PHONY: install run debug clean lint
 
 install:
 	uv sync
 
 run:
-	uv run python pac-man.py $(CONFIG)
+	PYTHONPATH=src uv run python pac-man.py config.json
 
 debug:
 	uv run python -m pdb pac-man.py $(CONFIG)
 
 clean:
-	Get-ChildItem -Path . -Recurse -Directory -Force -Include __pycache__,.mypy_cache,.pytest_cache | Remove-Item -Recurse -Force
+	rm -rf __pycache__ .mypy_cache .pytest_cache
+	find . -type d -name "__pycache__" -exec rm -rf {} +
 
 lint:
 	uv run flake8 .

@@ -7,7 +7,7 @@ from pacman.app.actions import Button, center, load_trans_image, IMAGES
 
 class VictoryScreen:
     def __init__(self, screen: pg.Surface, score: int) -> None:
-        """Prepare the funeral artwork, fonts and button positions."""
+        """Prepare the victory artwork, fonts and button positions."""
         self.screen = screen
         self.artwork = Button(
             'victory.png',
@@ -34,6 +34,10 @@ class VictoryScreen:
 
     @property
     def score_text(self) -> pg.Surface:
+        """Get latest score value.
+
+        Returns:
+            pg.Surface: Text rendered in pygame."""
         return self.title_font.render(
             str(self.score),
             True,
@@ -41,6 +45,7 @@ class VictoryScreen:
             )
 
     def render_victory(self) -> None:
+        """Render victory button with relative positions in fireworks."""
         mx, my = pg.mouse.get_pos()
         now = time.time() * 1000
         frwrk_frm = (
@@ -61,6 +66,22 @@ class VictoryScreen:
         )
         if int(time.time()) % 2 == 0:
             self.screen.blit(self.score_text, score_pos)
-        self.screen.blit(self.firework[frwrk_frm], (500, 500)) 
-        self.screen.blit(self.firework[frwrk_frm], (1150, 300))
-        self.screen.blit(self.firework[frwrk_frm], (1050, 475))
+
+        pos = (
+            self.artwork.pos[0],
+            self.artwork.pos[1] + self.firework[frwrk_frm].get_height() // 2
+        )
+        self.screen.blit(self.firework[frwrk_frm], pos)
+        pos = (
+            (self.artwork.pos[0] + self.artwork.width
+             - self.firework[frwrk_frm].get_width()),
+            self.artwork.pos[1] + self.firework[frwrk_frm].get_height() // 3
+        )
+        self.screen.blit(self.firework[frwrk_frm], pos)
+        pos = (
+            (self.artwork.pos[0] + self.artwork.width
+             - self.firework[frwrk_frm].get_width() * 1.5),
+            (self.artwork.pos[1] + self.artwork.height
+             - self.firework[frwrk_frm].get_height() * 1.3)
+        )
+        self.screen.blit(self.firework[frwrk_frm], pos)
