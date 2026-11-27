@@ -65,9 +65,13 @@ def handle_events(
             _handle_instructions_event(app, event)
             continue
 
-        # Escape closes the application outside special interfaces.
+        # Escape pauses gameplay instead of closing the application.
+        # Other screens retain their existing Escape behaviour.
         if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
-            app.stop()
+            if app.state == states.PLAYING:
+                app.pause_game()
+            else:
+                app.stop()
             continue
 
         # Main menu and character selection use their own handlers.
@@ -252,12 +256,6 @@ def _handle_gameplay_event(
 ) -> None:
     """Process movement and the secret cheat sequence."""
     if event.type != pg.KEYDOWN:
-        return
-
-    # Temporary development shortcut for testing the victory screen.
-    if event.key == pg.K_BACKSPACE:
-        from pacman.app.application import AppState
-        app.change_state(AppState.VICTORY)
         return
 
     # Check the secret sequence before ordinary movement.
