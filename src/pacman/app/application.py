@@ -4,8 +4,13 @@ from enum import Enum, auto
 from random import randint
 from types import TracebackType
 import pygame as pg
-from pacman.app.actions import CharSelectAction
-from pacman.app.actions import MainMenuAction, center
+import asyncio
+
+from pacman.app.actions import (
+    CharSelectAction,
+    MainMenuAction,
+    center,
+)
 from pacman.app.app_display import AppDisplay
 from pacman.app.cheat_code import CheatCode
 from pacman.app.cheat_panel import CheatPanel
@@ -46,6 +51,7 @@ from pacman.app.instructions_screen import InstructionsScreen
 from pacman.app.menu_renderer import render_instructions
 from pacman.app.startup_splash import StartupSplash
 from pacman.app.game_over_screen import GameOverAction, GameOverScreen
+from pacman.app.victory import VictoryScreen
 
 
 class AppState(Enum):
@@ -91,6 +97,8 @@ class PacManApp:
         self.game_over_screen = GameOverScreen(
             self.display.game_canvas
         )
+        # Initialize the victory screen and load its visual assets.
+        self.victory_screen = VictoryScreen(self.display.screen, 0)
         self.name_entry = NameEntryScreen(self.display.menu_canvas)
         self.highscore_select = HighScoreSelect(
             self.display.menu_canvas
@@ -104,6 +112,7 @@ class PacManApp:
         # None means the two-button Hall selection screen is visible.
         self.active_highscore_board: EntryKind | None = None
         self.pause_background: pg.Surface | None = None
+
         # Maze geometry changes whenever a level is loaded.
         self.active_level_layout: list[list[str]] = []
         self.block_pos: list[list[tuple[int, int]]] = []
@@ -176,47 +185,63 @@ class PacManApp:
             color="white",
         )
 
+    def _run_frame(
+        self,
+        gameplay: GameplayUpdater,
+        elapsed_time: float,
+        current_time: float,
+    ) -> None:
+        """Process input, gameplay and rendering for one frame."""
+        previous_state = self.state
+        previous_panel_open = self.cheat_panel_open
+
+        self._load_bg()
+        self._get_events()
+
+        timed_out = gameplay.update(
+            level=self.active_level,
+            game_state=self.game_state,
+            cheat_mode=self.cheat_mode,
+            elapsed_time=elapsed_time,
+            current_time=current_time,
+            was_playing=previous_state == AppState.PLAYING,
+            is_playing=lambda: self.state == AppState.PLAYING,
+            was_paused=previous_state == AppState.PAUSED,
+            is_paused=self.state == AppState.PAUSED,
+            was_panel_open=previous_panel_open,
+            panel_open=self.cheat_panel_open,
+            ghost_animations=self.sprite_animator.ghost_moves,
+            resolve_collisions=self.resolve_ghost_collisions,
+        )
+
+        if timed_out:
+            self.timeout_started_at = current_time
+            self.change_state(AppState.TIMEOUT)
+
+        render_current_frame(
+            self,
+            AppState,
+            current_time,
+        )
+        pg.display.flip()
+
     def run(self) -> None:
         """Run gameplay updates, presentation and frame timing."""
         previous_time = time.monotonic()
         gameplay = GameplayUpdater(self.active_level)
+
         while self.running:
             iter_start = time.time()
             current_time = time.monotonic()
             elapsed_time = current_time - previous_time
             previous_time = current_time
-            # Capture state before input changes it.
-            previous_state = self.state
-            previous_panel_open = self.cheat_panel_open
-            self._load_bg()
-            self._get_events()
-            # The gameplay layer manages movement and timing.
-            timed_out = gameplay.update(
-                level=self.active_level,
-                game_state=self.game_state,
-                cheat_mode=self.cheat_mode,
-                elapsed_time=elapsed_time,
-                current_time=current_time,
-                was_playing=previous_state == AppState.PLAYING,
-                is_playing=lambda: self.state == AppState.PLAYING,
-                was_paused=previous_state == AppState.PAUSED,
-                is_paused=self.state == AppState.PAUSED,
-                was_panel_open=previous_panel_open,
-                panel_open=self.cheat_panel_open,
-                ghost_animations=self.sprite_animator.ghost_moves,
-                resolve_collisions=self.resolve_ghost_collisions,
-            )
-            if timed_out:
-                self.timeout_started_at = current_time
-                self.change_state(AppState.TIMEOUT)
-            # Screen presentation remains in the existing renderer.
-            render_current_frame(
-                self,
-                AppState,
+
+            self._run_frame(
+                gameplay,
+                elapsed_time,
                 current_time,
             )
-            pg.display.flip()
-            # Preserve the existing approximate 60 FPS limit.
+
             iter_end = time.time()
             time.sleep(
                 max(
@@ -224,6 +249,26 @@ class PacManApp:
                     1 / 60 - (iter_end - iter_start),
                 )
             )
+
+    async def run_browser(self) -> None:
+        """Run gameplay while yielding control to the browser."""
+        previous_time = time.monotonic()
+        gameplay = GameplayUpdater(self.active_level)
+
+        while self.running:
+            frame_start = time.monotonic()
+            elapsed_time = frame_start - previous_time
+            previous_time = frame_start
+
+            self._run_frame(
+                gameplay,
+                elapsed_time,
+                frame_start,
+            )
+
+            frame_duration = time.monotonic() - frame_start
+            remaining_time = max(0.0, 1 / 60 - frame_duration)
+            await asyncio.sleep(remaining_time)
 
     def change_state(self, new_state: AppState) -> None:
         """Change the current application state."""
@@ -424,26 +469,23 @@ class PacManApp:
         )
 
     def _load_bg(self) -> None:
-        """Advance loading-screen background frames."""
+        """Load background animation frames incrementally."""
+        # Load one frame per update to avoid blocking the game loop.
         frame: pg.Surface | None = next(
             self.display.frame_gen,
             None,
         )
 
-        if frame is not None:
-            self.display.bg.append(frame)
+        # When all frames are loaded, the generator returns None.
+        if frame is None:
+            return
 
-            # Begin animation timing when the first frame arrives.
-            if len(self.display.bg) == 1:
-                self.start_time = time.time() * 1000
+        # Store each frame for the animated menu background.
+        self.display.bg.append(frame)
 
-            # Update progress for every successfully loaded frame.
-            self.display.loading.render_bar(
-                min(
-                    4,
-                    len(self.display.bg) * 5 // self.display.bg_files,
-                )
-            )
+        # Start animation timing when the first frame becomes available.
+        if len(self.display.bg) == 1:
+            self.start_time = time.time() * 1000
 
     def _reset_score_after_cheat(self) -> None:
         """Invalidate the score after cheating."""
@@ -514,8 +556,9 @@ class PacManApp:
             return
         next_level_config = self.session.advance_level()
         if next_level_config is None:
-            if not self._finalize_run():
-                self.change_state(AppState.VICTORY)
+            # Show the celebration before finalizing the player's score.
+            # TAKE YOUR BOW handles leaderboard entry afterward.
+            self.change_state(AppState.VICTORY)
             return
         # Preserve the existing random seed behaviour.
         next_level_seed = randint(0, 2**31 - 1)
@@ -659,6 +702,7 @@ class PacManApp:
             sprite_animator=self.sprite_animator,
             hud=self.display.hud,
             disco_effects=self.display.disco_effects,
+            level_bg=self.display.level_bg,
         )
 
     def _run_pause_menu(self) -> None:
@@ -687,9 +731,13 @@ class PacManApp:
         self.game_over_screen.render()
 
     def _run_victory(self) -> None:
-        """Handle the victory application state."""
-        # Victory presentation remains a separate UI task.
-        pass
+        """Render the victory screen with the player's final score."""
+        # Keep the displayed score synchronized with the finished run.
+        if self.game_state is not None:
+            self.victory_screen.score = self.game_state.score
+
+        # Draw the victory artwork and animated fireworks.
+        self.victory_screen.render_victory()
 
     def _run_name_entry(self) -> None:
         """Render high-score name entry on the logical menu canvas."""

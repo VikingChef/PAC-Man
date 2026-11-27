@@ -9,6 +9,7 @@ def create_greyscale_background(
     original: pg.Surface,
 ) -> pg.Surface:
     """Return a darkened greyscale copy of a gameplay frame."""
+
     background = original.copy()
 
     # Read the image colours into a numerical pixel array.

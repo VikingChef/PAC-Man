@@ -1,3 +1,4 @@
+
 """Verify progressive background playback and safe GIF discovery."""
 
 from pathlib import Path
@@ -13,7 +14,9 @@ from pacman.app.application import PacManApp
 from pacman.app.menu_renderer import background_frame_index
 
 
-def test_background_filenames_ignore_unrelated_files(tmp_path: Path) -> None:
+def test_background_filenames_ignore_unrelated_files(
+    tmp_path: Path,
+) -> None:
     """Ignore Finder metadata and sort numbered GIFs numerically."""
     for name in (
         ".DS_Store",
@@ -39,17 +42,19 @@ def test_background_clock_starts_with_first_frame(
     app = PacManApp.__new__(PacManApp)
     frame_one = pg.Surface((1, 1))
     frame_two = pg.Surface((1, 1))
-    progress: list[int] = []
+
+    # Simulate background loading without creating an actual window.
     app.display = cast(
         AppDisplay,
         SimpleNamespace(
             frame_gen=iter((frame_one, frame_two)),
             bg=[],
             bg_files=2,
-            loading=SimpleNamespace(render_bar=progress.append),
         ),
     )
     app.start_time = 0.0
+
+    # Provide predictable timestamps for the loading sequence.
     now = iter((12.0, 14.0))
     monkeypatch.setattr(
         application_module.time,
@@ -57,18 +62,19 @@ def test_background_clock_starts_with_first_frame(
         lambda: next(now),
     )
 
+    # The first frame starts the animation clock.
     app._load_bg()
     assert app.start_time == 12000.0
     assert len(app.display.bg) == 1
 
+    # Subsequent frames must not reset the original start time.
     app._load_bg()
     assert app.start_time == 12000.0
     assert len(app.display.bg) == 2
 
-    # Nothing should restart the clock after all frames arrive.
+    # Exhausting the generator must not restart the animation.
     app._load_bg()
     assert app.start_time == 12000.0
-    assert progress == [2, 4]
 
 
 def test_background_frame_selection_does_not_reverse_on_append() -> None:

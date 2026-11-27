@@ -24,6 +24,7 @@ class GameOverScreen:
 
     def __init__(self, screen: pg.Surface) -> None:
         """Prepare the funeral artwork, fonts and button positions."""
+
         self.screen = screen
         self.artwork = pg.image.load(
             str(Path(IMAGES) / "game_over.png")
@@ -64,6 +65,7 @@ class GameOverScreen:
 
     def begin(self) -> None:
         """Prepare a fresh royal tribunal."""
+
         self.refused = False
         self.background = None
         self.original_background = None
@@ -71,6 +73,7 @@ class GameOverScreen:
 
     def show_refusal(self) -> None:
         """Display the royal response to a second plea."""
+
         self.refused = True
 
     def _draw_text(
@@ -89,6 +92,7 @@ class GameOverScreen:
 
     def render(self) -> None:
         """Render the frozen game and royal funeral tribunal."""
+
         if self.background is None:
             # Capture the last gameplay frame once per Game Over.
             self.original_background = self.screen.copy().convert()
@@ -185,6 +189,7 @@ class GameOverScreen:
         event: pg.event.Event,
     ) -> GameOverAction | None:
         """Return the selected option for a left mouse click."""
+
         if event.type != pg.MOUSEBUTTONDOWN or event.button != 1:
             return None
 

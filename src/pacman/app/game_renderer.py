@@ -6,6 +6,7 @@ from collections.abc import Callable
 
 import pygame as pg
 
+from pacman.app.actions import center
 from pacman.app.disco_effects import DiscoEffects
 from pacman.app.hud import GameHUD
 from pacman.app.sprite_animator import SpriteAnimator
@@ -52,7 +53,6 @@ def render_disco_effects(
 
     maze_left, maze_top = block_positions[0][0]
     last_x, last_y = block_positions[-1][-1]
-
     maze_bounds = pg.Rect(
         maze_left,
         maze_top,
@@ -111,10 +111,19 @@ def render_game(
     sprite_animator: SpriteAnimator,
     hud: GameHUD,
     disco_effects: DiscoEffects,
+    level_bg: pg.Surface,
 ) -> None:
     """Render the complete active game in its original drawing order."""
-    # Clear previous-frame pixels before drawing the current scene.
-    canvas.fill((24, 18, 38))
+    # Clear the previous frame before drawing the level background.
+    canvas.fill((0, 0, 0))
+
+    # Center the background on the logical gameplay canvas.
+    # Drawing it first keeps walls, characters and HUD visible.
+    background_position = (
+        center(canvas.get_width(), level_bg.get_width()),
+        center(canvas.get_height(), level_bg.get_height()),
+    )
+    canvas.blit(level_bg, background_position)
 
     render_maze_walls(
         canvas,
@@ -135,7 +144,6 @@ def render_game(
     render_player(canvas, level, sprite_position)
 
     sprite_animator.render_ghosts(canvas, level)
-
     if game_state is not None:
         hud.render(
             canvas,

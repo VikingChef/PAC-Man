@@ -36,6 +36,7 @@ class Button:
 
     @property
     def hover_pos(self) -> tuple[int, int]:
+        """Calculate the button's position when hovered."""
         return (
             self.pos[0] - self.hover_offset[0],
             self.pos[1] - self.hover_offset[1],

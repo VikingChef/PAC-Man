@@ -53,23 +53,54 @@ class Ghost:
         self.state = GhostState.ENRAGED
         self.respawn_timer = 0
 
-        # The game model can be used without artwork in unit tests.
-        # Ghosts created by the factory receive a sprite path for rendering.
-        self.sprite: dict[Direction, pg.Surface] = {}
+        # Each direction has artwork for normal and frightened ghosts.
+        # Eaten ghosts will reuse normal artwork while blinking.
+        self.sprite: dict[
+            Direction,
+            dict[GhostState, pg.Surface],
+        ] = {}
 
         if sprite_path is not None:
-            front = load_trans_image(
+            # North and south share the same front-facing artwork.
+            normal_front = load_trans_image(
                 f"{IMAGES}/ghosts/{sprite_path}-front.png"
             )
+            frightened_front = load_trans_image(
+                f"{IMAGES}/ghosts/{sprite_path}-afraid-front.png"
+            )
+
+            # Load each side-facing sprite only once.
+            normal_left = load_trans_image(
+                f"{IMAGES}/ghosts/{sprite_path}-left.png"
+            )
+            frightened_left = load_trans_image(
+                f"{IMAGES}/ghosts/{sprite_path}-afraid-left.png"
+            )
+            normal_right = load_trans_image(
+                f"{IMAGES}/ghosts/{sprite_path}-right.png"
+            )
+            frightened_right = load_trans_image(
+                f"{IMAGES}/ghosts/{sprite_path}-afraid-right.png"
+            )
+
+            # Organize sprites by direction, then ghost state.
             self.sprite = {
-                Direction.NORTH: front,
-                Direction.SOUTH: front,
-                Direction.WEST: load_trans_image(
-                    f"{IMAGES}/ghosts/{sprite_path}-left.png"
-                ),
-                Direction.EAST: load_trans_image(
-                    f"{IMAGES}/ghosts/{sprite_path}-right.png"
-                ),
+                Direction.NORTH: {
+                    GhostState.ENRAGED: normal_front,
+                    GhostState.FRIGHTENED: frightened_front,
+                },
+                Direction.SOUTH: {
+                    GhostState.ENRAGED: normal_front,
+                    GhostState.FRIGHTENED: frightened_front,
+                },
+                Direction.WEST: {
+                    GhostState.ENRAGED: normal_left,
+                    GhostState.FRIGHTENED: frightened_left,
+                },
+                Direction.EAST: {
+                    GhostState.ENRAGED: normal_right,
+                    GhostState.FRIGHTENED: frightened_right,
+                },
             }
 
     def reset(self) -> None:

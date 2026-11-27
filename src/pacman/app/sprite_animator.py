@@ -101,7 +101,7 @@ class SpriteAnimator:
         )
 
     def render_ghosts(self, canvas: pg.Surface, level: Level) -> None:
-        """Draw ghosts with their current movement interpolation."""
+        """Draw ghosts with state-based sprites and smooth movement."""
         block_width = self.wall_sprite.get_width()
         block_height = self.wall_sprite.get_height()
 
@@ -114,7 +114,16 @@ class SpriteAnimator:
                 if int(time.monotonic() * 4) % 2 == 0:
                     continue
 
-            sprite = ghost.sprite[ghost.direction]
+            # Eaten ghosts have no separate artwork, so use the normal
+            # sprite during the visible part of their blinking cycle.
+            sprite_state = (
+                GhostState.ENRAGED
+                if ghost.state == GhostState.EATEN
+                else ghost.state
+            )
+
+            # Select artwork using both direction and ghost state.
+            sprite = ghost.sprite[ghost.direction][sprite_state]
             dimensions = (sprite.get_width(), sprite.get_height())
             draw_x, draw_y = self._cell_position(ghost.position)
             animation = self.ghost_moves.get(ghost)
@@ -123,8 +132,8 @@ class SpriteAnimator:
                 start_position, started_at = animation
                 duration = level.config.ghost_move_interval_ms / 1000
 
-                # Interpolation affects only the displayed position.
-                # Logical ghost movement remains owned by the game.
+                # Interpolation changes only the displayed position.
+                # The game model remains responsible for movement.
                 progress = min(
                     1.0,
                     (time.monotonic() - started_at)
@@ -136,7 +145,7 @@ class SpriteAnimator:
                     progress,
                 )
 
-                # Finished animations no longer need tracking.
+                # Stop tracking animations after they finish.
                 if progress >= 1.0:
                     self.stop_ghost_move(ghost)
 

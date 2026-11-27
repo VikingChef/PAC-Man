@@ -4,8 +4,14 @@
 from __future__ import annotations
 
 import json
+import platform
+import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+
+# Browser saves are tied to this game's website and browser profile.
+BROWSER_STORAGE_KEY = "pac_maam_highscores_v1"
 
 
 @dataclass
@@ -39,7 +45,7 @@ class HighScoreManager:
         # Keep the shame leaderboard alongside legitimate scores.
         self.shame_manager = ShameScoreManager()
 
-        # Prevent damaged existing save files from being overwritten.
+        # Prevent damaged existing save data from being overwritten.
         self.save_blocked = False
 
         # Restore saved records after both leaderboards are initialized.
@@ -76,9 +82,47 @@ class HighScoreManager:
         """Determine if a score qualifies for the top 10."""
         return score >= self.high_scores[9].score
 
+    def _read_saved_text(self) -> str | None:
+        """Read saved scores from the current platform."""
+        if sys.platform == "emscripten":
+            # Browser Python cannot rely on ordinary files persisting.
+            # Access the JavaScript window supplied by Pygbag.
+            try:
+                window = getattr(platform, "window")
+                return window.localStorage.getItem(
+                    BROWSER_STORAGE_KEY
+                )
+            except Exception:
+                # Avoid replacing a save we cannot safely inspect.
+                self.save_blocked = True
+                return None
+
+        # On desktop, retain the existing JSON-file behaviour.
+        if not self.file_path.is_file():
+            return None
+
+        try:
+            return self.file_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            self.save_blocked = True
+            return None
+
+    def _write_saved_text(self, text: str) -> None:
+        """Write saved scores using platform-appropriate storage."""
+        if sys.platform == "emscripten":
+            # localStorage survives ordinary browser page reloads.
+            window = getattr(platform, "window")
+            window.localStorage.setItem(BROWSER_STORAGE_KEY, text)
+            return
+
+        # Keep the desktop save atomic: write first, replace second.
+        temporary_path = self.file_path.with_suffix(".tmp")
+        temporary_path.write_text(text, encoding="utf-8")
+        temporary_path.replace(self.file_path)
+
     def save(self) -> None:
-        """Save both leaderboards to a JSON file."""
-        # Never overwrite an existing file that failed validation.
+        """Persist both leaderboards on the current platform."""
+        # Never overwrite existing data that failed validation.
         if self.save_blocked:
             return
 
@@ -94,34 +138,33 @@ class HighScoreManager:
             ],
         }
 
-        # Write to a temporary file first to protect existing scores.
-        temporary_path = self.file_path.with_suffix(".tmp")
-        temporary_path.write_text(
-            json.dumps(data, indent=4),
-            encoding="utf-8",
-        )
+        # Use the same data format on desktop and in the browser.
+        saved_text = json.dumps(data, indent=4)
 
-        # Replace the old save only after the new file is complete.
-        temporary_path.replace(self.file_path)
+        try:
+            self._write_saved_text(saved_text)
+        except (OSError, Exception):
+            # A failed save must not crash an otherwise playable game.
+            self.save_blocked = True
 
     def load(self) -> None:
         """Restore both leaderboards from their saved JSON data."""
-        # First launch: keep the founding entries if no file exists.
-        if not self.file_path.is_file():
+        saved_text = self._read_saved_text()
+
+        # First launch: keep the founding entries if no save exists.
+        if saved_text is None:
             return
 
-        # Protect an existing file until we know its data is valid.
+        # Protect saved data until we know its contents are valid.
         self.save_blocked = True
 
-        # A damaged JSON file must not prevent the game from starting.
+        # A damaged save must not prevent the game from starting.
         try:
-            data = json.loads(
-                self.file_path.read_text(encoding="utf-8")
-            )
-        except (OSError, UnicodeError, json.JSONDecodeError):
+            data = json.loads(saved_text)
+        except (TypeError, ValueError):
             return
 
-        # Reject incomplete or unexpected file structures.
+        # Reject incomplete or unexpected save structures.
         if not isinstance(data, dict):
             return
 

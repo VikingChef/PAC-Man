@@ -78,6 +78,10 @@ def handle_events(
         elif app.state == states.PLAYING:
             _handle_gameplay_event(app, event)
 
+        elif app.state == states.VICTORY:
+            # Handle the player's exit from the victory celebration.
+            _handle_victory_event(app, event)
+
 
 def _handle_name_entry_event(
     app: PacManApp,
@@ -250,6 +254,12 @@ def _handle_gameplay_event(
     if event.type != pg.KEYDOWN:
         return
 
+    # Temporary development shortcut for testing the victory screen.
+    if event.key == pg.K_BACKSPACE:
+        from pacman.app.application import AppState
+        app.change_state(AppState.VICTORY)
+        return
+
     # Check the secret sequence before ordinary movement.
     unlocked = app.cheat_code.register_key(
         event.key,
@@ -323,3 +333,23 @@ def _handle_game_over_event(
 
     if action is not None:
         app.handle_game_over_action(action)
+
+
+def _handle_victory_event(
+    app: PacManApp,
+    event: pg.event.Event,
+) -> None:
+    """Handle the player's choice to leave the victory screen."""
+    # Only respond to the primary mouse button being pressed.
+    if event.type != pg.MOUSEBUTTONDOWN or event.button != 1:
+        return
+
+    # The victory screen owns its button's position on the display.
+    if not app.victory_screen.hover.collidepoint(event.pos):
+        return
+
+    # Qualifying scores open name entry; all others return to the menu.
+    if not app._finalize_run():
+        from pacman.app.application import AppState
+
+        app.change_state(AppState.MAIN_MENU)

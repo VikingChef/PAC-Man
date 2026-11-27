@@ -6,7 +6,6 @@ from collections.abc import Iterator
 import pygame as pg
 
 from pacman.app.character_select import CharacterSelect
-from pacman.app.loading_bar import LoadingBar
 from pacman.app.main_menu import MainMenu
 from pacman.app.menu_actions import CharSelectAction, MainMenuAction
 from pacman.app.ui_assets import IMAGES, center, load_trans_image
@@ -19,7 +18,6 @@ __all__ = [
     "CharSelectAction",
     "CharacterSelect",
     "IMAGES",
-    "LoadingBar",
     "MainMenu",
     "MainMenuAction",
     "UI",
@@ -48,10 +46,10 @@ class UI:
 
         self.main_menu: MainMenu = MainMenu(self.screen)
         self.char_select: CharacterSelect = CharacterSelect(self.screen)
-        self.loading: LoadingBar = LoadingBar(self.screen)
 
     @property
     def bg_pos(self) -> tuple[int, int]:
+        """Return the background position for the current screen size."""
         if self.bg == []:
             return (0, 0)
         else:
@@ -67,6 +65,7 @@ class UI:
 
 
 def load_frames(path: str) -> Iterator[pg.Surface]:
+    """Load animation frames in numerical order, one at a time."""
     dir_list: list[str] = sorted(
         os.listdir(path),
         key=lambda x: int(
